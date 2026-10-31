@@ -67,37 +67,63 @@ const responses = {
   'account/read': { result: { account: { type: 'chatgpt', planType: 'edu' } } },
   'account/rateLimits/read': { result: { accountId: 'workspace-test', rateLimits: { primary: { usedPercent: 31, windowDurationMins: 300 }, individualLimit: null, credits: { hasCredits: true, balance: null } } } },
   'model/list': { result: { data: [{ id: 'test-model', displayName: 'Test model', isDefault: true }] } },
-  getAuthStatus: { result: { authMethod: 'chatgpt', authToken: 'synthetic-test-token' } }
+  getAuthStatus: { result: { authMethod: 'chatgpt', authToken: 'synthetic-test-token', accountId: 'workspace-test' } }
 };
 
-test('quota reader merges desktop monthly data even when rateLimits.individualLimit is null', async () => {
+const backend = { plan_type: 'edu', rate_limit: { primary_window: { used_percent: 31, limit_window_seconds: 18000, reset_at: 1793467589 }, secondary_window: { used_percent: 79, limit_window_seconds: 604800, reset_at: 1793674398 } } };
+const reply = data => ({ ok: true, json: async () => data });
+const route = url => reply(url.pathname.endsWith('/wham/usage') ? backend : observed);
+
+test('quota and monthly are read directly from backend without app-server quota RPC', async () => {
   const requests = [];
-  const result = await requestCodexUsage('fake-codex', { spawn: () => appServer(responses, requests), fetch: async () => ({ ok: true, json: async () => observed }) });
+  const result = await requestCodexUsage('fake-codex', { spawn: () => appServer(responses, requests), fetch: async url => route(url) });
   assert.equal(describeMonthlyUsage(result.usage).text, '15 of 10,000 credits used');
   assert.equal(result.windows[0].remainingPercent, 69);
   assert.equal(result.models[0].name, 'Test model');
+  assert.equal(result.windows[1].remainingPercent, 21);
+  assert.equal(result.quotaSource, 'chatgpt-backend');
+  assert.ok(!requests.some(request => request.method === 'account/rateLimits/read')); 
   assert.equal(result.monthlyError, null);
   assert.equal(JSON.stringify(result).includes('synthetic-test-token'), false);
   assert.ok(requests.some(request => request.method === 'getAuthStatus' && request.params.includeToken === true));
 });
 
 test('monthly HTTP failure preserves normal quota data and reports only a sanitized error', async () => {
-  const result = await requestCodexUsage('fake-codex', { spawn: () => appServer(responses, []), fetch: async () => ({ ok: false, status: 403, json: async () => { throw Error('must not read error body'); } }) });
+  const result = await requestCodexUsage('fake-codex', { spawn: () => appServer(responses, []), fetch: async url => url.pathname.endsWith('/wham/usage') ? reply(backend) : ({ ok: false, status: 403, json: async () => { throw Error('must not read error body'); } }) });
   assert.equal(result.windows[0].remainingPercent, 69);
   assert.equal(result.monthlyError, 'Monthly usage unavailable (HTTP 403)');
   assert.equal(result.usage, null);
 });
 
-test('an unsupported auth method preserves quota data without making a monthly request', async () => {
+test('unsupported auth makes no backend requests and does not use app-server quota fallback', async () => {
   let fetched = false;
   const result = await requestCodexUsage('fake-codex', { spawn: () => appServer({ ...responses, getAuthStatus: { error: { code: -32601 } } }, []), fetch: async () => { fetched = true; } });
-  assert.equal(result.windows[0].remainingPercent, 69);
+  assert.equal(result.windows.length, 0);
+  assert.match(result.quotaError, /sign-in unavailable/);
   assert.equal(fetched, false);
   assert.match(result.monthlyError, /sign-in unavailable/);
 });
 
 test('a stuck monthly request times out without discarding quota data', async () => {
-  const result = await requestCodexUsage('fake-codex', { timeoutMs: 30, spawn: () => appServer(responses, []), fetch: () => new Promise(() => {}) });
+  const result = await requestCodexUsage('fake-codex', { timeoutMs: 30, spawn: () => appServer(responses, []), fetch: url => url.pathname.endsWith("/wham/usage") ? Promise.resolve(reply(backend)) : new Promise(() => {}) });
   assert.equal(result.windows[0].remainingPercent, 69);
   assert.match(result.monthlyError, /timed out/);
+});
+
+
+test('backend quota failure keeps monthly data and never calls rateLimits RPC', async () => {
+  const requests = [];
+  const result = await requestCodexUsage('fake', { spawn: () => appServer(responses, requests), fetch: async url => url.pathname.endsWith('/wham/usage') ? { ok: false, status: 403 } : reply(observed) });
+  assert.equal(result.windows.length, 0);
+  assert.match(result.quotaError, /HTTP 403/);
+  assert.equal(result.usage.limit, 10000);
+  assert.ok(!requests.some(request => request.method === 'account/rateLimits/read'));
+});
+
+test('backend quota mapper rejects absent percentages and preserves reset timestamps', () => {
+  const { normalizeBackendQuota } = require('../backend-quota');
+  assert.throws(() => normalizeBackendQuota({ rate_limit: { primary_window: { used_percent: null } } }), /no valid windows/);
+  const result = normalizeBackendQuota(backend);
+  assert.equal(result.rateLimitsByLimitId.codex.primary.resetsAt, 1793467589);
+  assert.equal(result.rateLimitsByLimitId.codex.secondary.windowDurationMins, 10080);
 });

@@ -28,15 +28,14 @@ function describeMonthlyUsage(usage) {
   };
 }
 
-async function readMonthlyUsage(token, accountId, options = {}) {
-  if (typeof token !== 'string' || !token || typeof accountId !== 'string' || !accountId) throw new Error('Monthly usage requires an authenticated workspace');
+async function readBackendJson(token, accountId, pathname, options = {}) {
+  if (typeof token !== 'string' || !token || typeof accountId !== 'string' || !accountId) throw new Error('Backend usage requires an authenticated workspace');
   let tokenAccount = null;
   try {
     tokenAccount = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))['https://api.openai.com/auth']?.chatgpt_account_id;
   } catch {}
-  if (tokenAccount && tokenAccount !== accountId) throw new Error('Monthly usage account routing differs from Codex');
-  const url = new URL(`https://chatgpt.com/backend-api/accounts/${encodeURIComponent(accountId)}/spend-controls/current-user/monthly-usage`);
-  url.searchParams.set('supports_usage_limit_modes', 'true');
+  if (tokenAccount && tokenAccount !== accountId) throw new Error('Backend usage account routing differs from Codex');
+  const url = new URL(`https://chatgpt.com${pathname}`);
   const fetchUsage = options.fetch || globalThis.fetch;
   if (typeof fetchUsage !== 'function') throw new Error('Monthly usage network transport unavailable');
   const response = await fetchUsage(url, {
@@ -44,9 +43,14 @@ async function readMonthlyUsage(token, accountId, options = {}) {
     headers: { Authorization: `Bearer ${token}`, 'ChatGPT-Account-ID': accountId, Accept: 'application/json', 'Cache-Control': 'no-store', Pragma: 'no-cache' }
   });
   if (!response.ok) throw new Error(`Monthly usage unavailable (HTTP ${response.status})`);
-  const usage = normalizeMonthlyUsage(await response.json());
+  return response.json();
+}
+
+async function readMonthlyUsage(token, accountId, options = {}) {
+  const body = await readBackendJson(token, accountId, `/backend-api/accounts/${encodeURIComponent(accountId)}/spend-controls/current-user/monthly-usage?supports_usage_limit_modes=true`, options);
+  const usage = normalizeMonthlyUsage(body);
   if (!usage) throw new Error('Monthly spending limit not available for this account');
   return usage;
 }
 
-module.exports = { normalizeMonthlyUsage, describeMonthlyUsage, readMonthlyUsage };
+module.exports = { normalizeMonthlyUsage, describeMonthlyUsage, readMonthlyUsage, readBackendJson };

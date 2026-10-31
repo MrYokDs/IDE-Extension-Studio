@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { readMonthlyUsage } = require('./monthly-usage');
+const { readBackendQuota } = require('./backend-quota');
 const { version } = require('./package.json');
 
 function resolveBundledCodex(extensionPath, options = {}) {
@@ -95,6 +96,8 @@ function requestCodexUsage(executable, options = {}) {
     let modelsDone = false;
     let monthly = null;
     let monthlyDone = false;
+    let quotaDone = false;
+    let quotaError = null;
     let monthlyError = null;
     const monthlyAbort = new AbortController();
     let finished = false;
@@ -118,16 +121,19 @@ function requestCodexUsage(executable, options = {}) {
     };
     const send = message => child.stdin.write(`${JSON.stringify(message)}\n`);
     const complete = () => {
-      if (finished || !modelsDone || !monthlyDone) return;
+      if (finished || !modelsDone || !monthlyDone || !quotaDone) return;
       const value = normalizeCodex(rateLimits, account, models);
       if (monthly) value.usage = monthly;
       value.monthlyError = monthlyError;
+      value.quotaError = quotaError;
+      value.quotaSource = rateLimits ? "chatgpt-backend" : null;
       finish(value);
     };
     timer = setTimeout(() => {
-      if (!rateLimits) return fail(new Error('Codex app-server usage query timed out'));
-      monthlyError = monthlyError || 'Monthly usage request timed out';
-      modelsDone = monthlyDone = true;
+      if (!account) return fail(new Error('Codex account query timed out'));
+      if (!quotaDone) quotaError = 'Backend quota request timed out';
+      if (!monthlyDone) monthlyError = monthlyError || 'Monthly usage request timed out';
+      modelsDone = monthlyDone = quotaDone = true;
       complete();
     }, timeoutMs);
     child.on('error', fail);
@@ -148,10 +154,6 @@ function requestCodexUsage(executable, options = {}) {
         } else if (message.id === 2) {
           if (message.error) return fail(new Error(message.error.message || 'Codex account status unavailable'));
           account = message.result?.account || null;
-          send({ id: 3, method: 'account/rateLimits/read' });
-        } else if (message.id === 3) {
-          if (message.error) return fail(new Error(message.error.message || 'Codex rate limits unavailable'));
-          rateLimits = message.result;
           send({ id: 4, method: 'model/list', params: { limit: 100, includeHidden: false } });
           send({ id: 5, method: 'getAuthStatus', params: { includeToken: true, refreshToken: false } });
         } else if (message.id === 4) {
@@ -166,12 +168,20 @@ function requestCodexUsage(executable, options = {}) {
         } else if (message.id === 5) {
           const auth = message.result;
           if (message.error || !['chatgpt', 'chatgptAuthTokens'].includes(auth?.authMethod) || !auth?.authToken) {
+            quotaError = 'Backend usage sign-in unavailable from this Codex version';
+            quotaDone = true;
             monthlyError = 'Monthly usage sign-in unavailable from this Codex version';
             monthlyDone = true;
             complete();
             continue;
           }
-          readMonthlyUsage(auth.authToken, rateLimits.accountId, { fetch: options.fetch, signal: monthlyAbort.signal })
+          let accountId = auth.accountId;
+          try { accountId ||= JSON.parse(Buffer.from(auth.authToken.split('.')[1], 'base64url').toString('utf8'))['https://api.openai.com/auth']?.chatgpt_account_id; } catch {}
+          readBackendQuota(auth.authToken, accountId, { fetch: options.fetch, signal: monthlyAbort.signal })
+            .then(value => { rateLimits = value; })
+            .catch(error => { quotaError = error.message; })
+            .finally(() => { quotaDone = true; complete(); });
+          readMonthlyUsage(auth.authToken, accountId, { fetch: options.fetch, signal: monthlyAbort.signal })
             .then(value => { monthly = value; })
             .catch(error => { monthlyError = /^(Monthly usage|Monthly spending)/.test(error?.message || '') ? error.message : 'Monthly usage request failed'; })
             .finally(() => { monthlyDone = true; complete(); });

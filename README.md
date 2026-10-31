@@ -19,7 +19,7 @@ Requirements: Node.js 20+ and Python 3. No npm dependencies are required for the
 
 ```sh
 npm test
-python extensions/codex-code-review-usage/package_vsix.py releases/code-review-usage-0.4.3.vsix
+python extensions/codex-code-review-usage/package_vsix.py releases/code-review-usage-0.4.4.vsix
 ```
 
 Install the generated VSIX using **Extensions: Install from VSIX** and reload the IDE. The packager requires a new output filename for each build.

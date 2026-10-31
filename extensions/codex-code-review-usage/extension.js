@@ -52,6 +52,7 @@ function activate(context) {
   const escapeHtml = value => String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
   const displayPlan = value => ({
     edu: 'ChatGPT Education (Edu)',
+    education: 'ChatGPT Education (Edu)',
     edu_plus: 'ChatGPT Education Plus (Edu Plus)',
     edu_pro: 'ChatGPT Education Pro (Edu Pro)'
   }[value] || value || 'Not provided');
@@ -125,7 +126,7 @@ function activate(context) {
           if (disposed || !usageEnabled()) return;
           codexUsage = fresh;
           lastUsageRefreshAt = Date.now();
-          codexError = codexUsage.windows.length ? null : 'Codex did not return any quota buckets for this account.';
+          codexError = codexUsage.windows.length ? null : (fresh.quotaError || 'Codex did not return any quota buckets for this account.');
         } catch (error) {
           if (disposed || !usageEnabled()) return;
           codexUsage = null;
