@@ -2,10 +2,11 @@
 /*
 !/.gitignore
 !/README.md
+!/AGENTS.md
 !/package.json
 !/extensions/
 /extensions/*
-!/extensions/codex-review-bridge/
+!/extensions/codex-code-review-usage/
 !/tools/
 /tools/*
 !/tools/Build-ExtensionIcon.ps1

@@ -6,6 +6,6 @@
     "extensions/*"
   ],
   "scripts": {
-    "test": "node --test extensions/codex-review-bridge/test/core.test.js extensions/codex-review-bridge/test/extension.test.js extensions/codex-review-bridge/test/usage.test.js extensions/codex-review-bridge/test/dashboard.test.js"
+    "test": "node --test extensions/codex-code-review-usage/test/core.test.js extensions/codex-code-review-usage/test/extension.test.js extensions/codex-code-review-usage/test/usage.test.js extensions/codex-code-review-usage/test/dashboard.test.js"
   }
 }

@@ -1,6 +1,6 @@
 # Rebuild the original vector mark as a 256px extension icon, without external dependencies.
 Add-Type -AssemblyName System.Drawing
-$target = Join-Path $PSScriptRoot '../extensions/codex-review-bridge/media/icon.png'
+$target = Join-Path $PSScriptRoot '../extensions/codex-code-review-usage/media/icon.png'
 $bitmap = [System.Drawing.Bitmap]::new(1024, 1024)
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 $graphics.SmoothingMode = 'AntiAlias'
