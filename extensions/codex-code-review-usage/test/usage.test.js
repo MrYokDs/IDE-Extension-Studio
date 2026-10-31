@@ -82,7 +82,7 @@ test('quota and monthly are read directly from backend without app-server quota 
   assert.equal(result.models[0].name, 'Test model');
   assert.equal(result.windows[1].remainingPercent, 21);
   assert.equal(result.quotaSource, 'chatgpt-backend');
-  assert.ok(!requests.some(request => request.method === 'account/rateLimits/read')); 
+  assert.ok(!requests.some(request => request.method === 'account/rateLimits/read'));
   assert.equal(result.monthlyError, null);
   assert.equal(JSON.stringify(result).includes('synthetic-test-token'), false);
   assert.ok(requests.some(request => request.method === 'getAuthStatus' && request.params.includeToken === true));
