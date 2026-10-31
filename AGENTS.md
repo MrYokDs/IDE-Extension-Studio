@@ -28,3 +28,14 @@
 - Preserve unrelated user changes. Never upload credentials, personal diagnostics, account data, local archives, caches or other ignored/private files. Only publish reviewed project files.
 - Use normal fast-forward pushes. Do not force-push, rewrite remote history, delete remote branches or expand publication to other repositories without explicit authorization.
 - If authentication, permissions, network or enforced sandbox approval blocks a push, report the concrete blocker and retain the local commit; never claim it was pushed. System approval boundaries still apply.
+
+
+<!-- BEGIN user-commit-message-style -->
+## Commit message format
+
+- Use Conventional Commit subjects: `type: สรุปสิ่งที่เปลี่ยนเป็นภาษาไทย` or `type(scope): สรุปสิ่งที่เปลี่ยนเป็นภาษาไทย` when a scope helps.
+- Choose the type from the actual change: `fix` for bug fixes, `feat` for new features, `docs` for documentation/rules, `refactor` for restructuring without behavior changes, `style` for formatting only, `test` for tests, `build` for packaging/dependencies/build tools, `ci` for CI configuration, `perf` for performance improvements, and `chore` for other maintenance.
+- Keep the summary concrete and concise, explaining the change rather than writing a generic label. Keep code identifiers and technical names in their original language. Add a body for material reasons, limitations or validation when needed.
+- Examples: `fix: แก้หน้าภาพรวมเปิดแท็บซ้ำ`, `feat: เพิ่มการตั้งค่ารอบรีเฟรช Usage`, `docs: กำหนดรูปแบบข้อความ commit`.
+- Apply this format to future commits. Do not rewrite existing commit history solely to change message formatting. This rule does not grant commit/push permissions beyond the user's existing authorization.
+<!-- END user-commit-message-style -->
