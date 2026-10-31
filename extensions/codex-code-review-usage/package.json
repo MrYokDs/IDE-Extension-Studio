@@ -2,7 +2,7 @@
   "name": "code-review-usage",
   "displayName": "Codex Code Review & Usage",
   "description": "Review code changes and monitor Codex quotas and monthly credit usage.",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "icon": "media/icon.png",
   "publisher": "code-review-tools",
   "engines": {
@@ -16,7 +16,8 @@
     "onStartupFinished"
   ],
   "extensionDependencies": [
-    "openai.chatgpt"
+    "openai.chatgpt",
+    "clhome.antigravity-quota"
   ],
   "capabilities": {
     "untrustedWorkspaces": {

@@ -1,4 +1,4 @@
-# Codex Code Review & Usage 0.4.5
+# Codex Code Review & Usage 0.4.6
 
 Codex Code Review & Usage combines read-only change review with a Codex Usage panel styled after the AntigravityQuota status-bar monitor. The extension identity is `code-review-tools.code-review-usage`; it replaces `local-modpack.codex-review-bridge`.
 
@@ -38,12 +38,16 @@ Search Settings for `Codex Code Review & Usage`. Changes apply immediately.
 
 ## Backend-only feasibility (investigated 2026-10-31)
 
-A read-only probe of `/backend-api/codex/models?client_version=0.164.0` with existing Codex authorization returned HTTP 200; the visible model IDs matched `model/list`. The catalog exposes ordering/visibility metadata rather than a direct `isDefault` flag. Version 0.4.5 reads the model catalog directly. The default is derived from the first visible model in ascending priority order; it is not a server-provided isDefault field or an observation of the active chat.
+A read-only probe of `/backend-api/codex/models?client_version=0.164.0` with existing Codex authorization returned HTTP 200; the visible model IDs matched `model/list`. The catalog exposes ordering/visibility metadata rather than a direct `isDefault` flag. Version 0.4.6 reads the model catalog directly. The default is derived from the first visible model in ascending priority order; it is not a server-provided isDefault field or an observation of the active chat.
 
 [Independent OAuth registration](https://developers.openai.com/siwc/token-sharing-open-source/sign-in) is documented, but its tokens target the public API. [Model discovery for that flow](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) uses `/v1/models`. A new independent login has not been verified against the internal quota/monthly endpoints or the relevant Edu plan. Removing app-server completely therefore remains unverified; no new login flow or runtime change was shipped in this investigation.
 
 The independent OAuth trial was blocked before authorization by the workspace policy (`3p_delegated_access_policy_denied`). No independent access token was obtained, so internal quota/monthly compatibility remains untested. Keep existing Codex sign-in integration for this workspace unless its administrator enables the separate app authorization; model discovery now uses the backend with the existing authorization.
 
-## Data boundary (0.4.5)
+## Data boundary (0.4.6)
 
 `codex-auth.js` obtains credentials in memory through the installed Codex sign-in, and closes its child process before returning. `backend-client.js` coordinates independent quota, monthly and model reads. `backend-transport.js` owns endpoint paths, origin restrictions, authentication headers, redirects, cancellation and HTTP transport; schema mapping stays in focused modules. An endpoint failure does not discard other successful results. No credentials are returned to UI state. Models use the verified catalog compatibility parameter `client_version=0.164.0`, maintained centrally with endpoint routing. Independent OAuth remains disabled; no organization policy changes are required.
+
+## Required companion extensions
+
+The installer declares `openai.chatgpt` and `clhome.antigravity-quota` as required extension dependencies. antigravityQuota is a required companion by project choice; Codex usage does not read data from it. Version 1.0.0 is the requested reference, but VS Code extensionDependencies stores IDs only and cannot pin a dependency version. The IDE resolves an available compatible Marketplace version. Dependencies must be available and enabled for normal activation; an unavailable dependency may block installation/activation even when only Code Review is wanted. Users sign in to Codex themselves. Offline installations require installing dependency VSIX packages separately.
