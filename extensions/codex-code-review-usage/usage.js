@@ -1,10 +1,8 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
-const { readMonthlyUsage } = require('./monthly-usage');
-const { readBackendQuota } = require('./backend-quota');
-const { version } = require('./package.json');
+const { readCodexCredentials } = require('./codex-auth');
+const { readBackendSnapshot } = require('./backend-client');
 
 function resolveBundledCodex(extensionPath, options = {}) {
   const platform = options.platform || process.platform;
@@ -81,116 +79,25 @@ function normalizeCodex(result, account = null, models = []) {
   };
 }
 
-function requestCodexUsage(executable, options = {}) {
-  const spawnProcess = options.spawn || spawn;
+async function requestCodexUsage(executable, options = {}) {
   const timeoutMs = options.timeoutMs || 25000;
-  return new Promise((resolve, reject) => {
-    let child;
-    try { child = spawnProcess(executable, ['app-server'], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true }); }
-    catch (error) { reject(error); return; }
-    let buffer = '';
-    let stderr = '';
-    let account = null;
-    let rateLimits = null;
-    let models = [];
-    let modelsDone = false;
-    let monthly = null;
-    let monthlyDone = false;
-    let quotaDone = false;
-    let quotaError = null;
-    let monthlyError = null;
-    const monthlyAbort = new AbortController();
-    let finished = false;
-    let timer;
-    const finish = value => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      monthlyAbort.abort();
-      child.stdin.end();
-      child.kill();
-      resolve(value);
-    };
-    const fail = error => {
-      if (finished) return;
-      finished = true;
-      clearTimeout(timer);
-      monthlyAbort.abort();
-      child.kill();
-      reject(error);
-    };
-    const send = message => child.stdin.write(`${JSON.stringify(message)}\n`);
-    const complete = () => {
-      if (finished || !modelsDone || !monthlyDone || !quotaDone) return;
-      const value = normalizeCodex(rateLimits, account, models);
-      if (monthly) value.usage = monthly;
-      value.monthlyError = monthlyError;
-      value.quotaError = quotaError;
-      value.quotaSource = rateLimits ? "chatgpt-backend" : null;
-      finish(value);
-    };
-    timer = setTimeout(() => {
-      if (!account) return fail(new Error('Codex account query timed out'));
-      if (!quotaDone) quotaError = 'Backend quota request timed out';
-      if (!monthlyDone) monthlyError = monthlyError || 'Monthly usage request timed out';
-      modelsDone = monthlyDone = quotaDone = true;
-      complete();
-    }, timeoutMs);
-    child.on('error', fail);
-    child.stderr.on('data', chunk => { stderr = (stderr + chunk.toString()).slice(-3000); });
-    child.stdout.on('data', chunk => {
-      buffer += chunk.toString();
-      let newline;
-      while ((newline = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, newline).trim();
-        buffer = buffer.slice(newline + 1);
-        if (!line) continue;
-        let message;
-        try { message = JSON.parse(line); } catch { continue; }
-        if (message.id === 1) {
-          if (message.error) return fail(new Error(message.error.message || 'Codex app-server initialization failed'));
-          send({ method: 'initialized' });
-          send({ id: 2, method: 'account/read', params: { refreshToken: false } });
-        } else if (message.id === 2) {
-          if (message.error) return fail(new Error(message.error.message || 'Codex account status unavailable'));
-          account = message.result?.account || null;
-          send({ id: 4, method: 'model/list', params: { limit: 100, includeHidden: false } });
-          send({ id: 5, method: 'getAuthStatus', params: { includeToken: true, refreshToken: false } });
-        } else if (message.id === 4) {
-          const catalog = Array.isArray(message.result?.data) ? message.result.data : [];
-          models = catalog.map(model => ({
-            id: model.id || model.model,
-            name: model.displayName || model.display_name || model.model || model.id,
-            isDefault: Boolean(model.isDefault ?? model.is_default)
-          })).filter(model => model.id && model.name);
-          modelsDone = true;
-          complete();
-        } else if (message.id === 5) {
-          const auth = message.result;
-          if (message.error || !['chatgpt', 'chatgptAuthTokens'].includes(auth?.authMethod) || !auth?.authToken) {
-            quotaError = 'Backend usage sign-in unavailable from this Codex version';
-            quotaDone = true;
-            monthlyError = 'Monthly usage sign-in unavailable from this Codex version';
-            monthlyDone = true;
-            complete();
-            continue;
-          }
-          let accountId = auth.accountId;
-          try { accountId ||= JSON.parse(Buffer.from(auth.authToken.split('.')[1], 'base64url').toString('utf8'))['https://api.openai.com/auth']?.chatgpt_account_id; } catch {}
-          readBackendQuota(auth.authToken, accountId, { fetch: options.fetch, signal: monthlyAbort.signal })
-            .then(value => { rateLimits = value; })
-            .catch(error => { quotaError = error.message; })
-            .finally(() => { quotaDone = true; complete(); });
-          readMonthlyUsage(auth.authToken, accountId, { fetch: options.fetch, signal: monthlyAbort.signal })
-            .then(value => { monthly = value; })
-            .catch(error => { monthlyError = /^(Monthly usage|Monthly spending)/.test(error?.message || '') ? error.message : 'Monthly usage request failed'; })
-            .finally(() => { monthlyDone = true; complete(); });
-        }
-      }
-    });
-    child.on('close', code => { if (!finished) fail(new Error(stderr.trim() || `Codex app-server exited (${code})`)); });
-    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'code_review_usage', title: 'Codex Code Review & Usage', version }, capabilities: { experimentalApi: true } } });
-  });
+  const credentials = await readCodexCredentials(executable, { spawn: options.spawn, timeoutMs });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const snapshot = await readBackendSnapshot(credentials, { fetch: options.fetch, signal: controller.signal });
+    const value = normalizeCodex(snapshot.limits, null, snapshot.models);
+    value.usage = snapshot.usage;
+    value.monthlyError = snapshot.monthlyError;
+    value.quotaError = snapshot.quotaError;
+    value.modelsError = snapshot.modelsError;
+    value.quotaSource = snapshot.limits ? 'chatgpt-backend' : null;
+    value.modelsSource = snapshot.models.length ? 'chatgpt-backend' : null;
+    return value;
+  } finally {
+    clearTimeout(timer);
+    credentials.token = null;
+  }
 }
 
 module.exports = { resolveBundledCodex, resolveCodexExtensionExecutable, normalizeCodex, requestCodexUsage };

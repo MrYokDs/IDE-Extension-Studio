@@ -72,7 +72,8 @@ const responses = {
 
 const backend = { plan_type: 'edu', rate_limit: { primary_window: { used_percent: 31, limit_window_seconds: 18000, reset_at: 1793467589 }, secondary_window: { used_percent: 79, limit_window_seconds: 604800, reset_at: 1793674398 } } };
 const reply = data => ({ ok: true, json: async () => data });
-const route = url => reply(url.pathname.endsWith('/wham/usage') ? backend : observed);
+const modelBody = { models: [{ slug: 'test-model', display_name: 'Test model', visibility: 'list', priority: 0 }] };
+const route = url => reply(url.pathname.endsWith('/wham/usage') ? backend : url.pathname.endsWith('/models') ? modelBody : observed);
 
 test('quota and monthly are read directly from backend without app-server quota RPC', async () => {
   const requests = [];
@@ -80,6 +81,8 @@ test('quota and monthly are read directly from backend without app-server quota 
   assert.equal(describeMonthlyUsage(result.usage).text, '15 of 10,000 credits used');
   assert.equal(result.windows[0].remainingPercent, 69);
   assert.equal(result.models[0].name, 'Test model');
+  assert.deepEqual(requests.filter(request => request.id != null).map(request => request.method), ['initialize', 'getAuthStatus']);
+  assert.equal(result.modelsSource, 'chatgpt-backend');
   assert.equal(result.windows[1].remainingPercent, 21);
   assert.equal(result.quotaSource, 'chatgpt-backend');
   assert.ok(!requests.some(request => request.method === 'account/rateLimits/read'));
@@ -95,13 +98,10 @@ test('monthly HTTP failure preserves normal quota data and reports only a saniti
   assert.equal(result.usage, null);
 });
 
-test('unsupported auth makes no backend requests and does not use app-server quota fallback', async () => {
+test('unsupported auth makes no backend requests', async () => {
   let fetched = false;
-  const result = await requestCodexUsage('fake-codex', { spawn: () => appServer({ ...responses, getAuthStatus: { error: { code: -32601 } } }, []), fetch: async () => { fetched = true; } });
-  assert.equal(result.windows.length, 0);
-  assert.match(result.quotaError, /sign-in unavailable/);
+  await assert.rejects(requestCodexUsage('fake-codex', { spawn: () => appServer({ ...responses, getAuthStatus: { error: { code: -32601 } } }, []), fetch: async () => { fetched = true; } }), /sign-in unavailable/);
   assert.equal(fetched, false);
-  assert.match(result.monthlyError, /sign-in unavailable/);
 });
 
 test('a stuck monthly request times out without discarding quota data', async () => {
@@ -126,4 +126,44 @@ test('backend quota mapper rejects absent percentages and preserves reset timest
   const result = normalizeBackendQuota(backend);
   assert.equal(result.rateLimitsByLimitId.codex.primary.resetsAt, 1793467589);
   assert.equal(result.rateLimitsByLimitId.codex.secondary.windowDurationMins, 10080);
+});
+
+
+test('backend models filter hidden records, deduplicate and derive the default from priority', () => {
+  const { normalizeBackendModels } = require('../backend-client');
+  const models = normalizeBackendModels({ models: [
+    { slug: 'later', display_name: 'Later', visibility: 'list', priority: 5 },
+    { slug: 'hidden', display_name: 'Hidden', visibility: 'hide', priority: -1 },
+    { slug: 'first', display_name: 'First', visibility: 'list', priority: 0 },
+    { slug: 'first', display_name: 'Duplicate', visibility: 'list', priority: 1 }
+  ] });
+  assert.deepEqual(models, [{ id: 'first', name: 'First', isDefault: true }, { id: 'later', name: 'Later', isDefault: false }]);
+});
+
+test('model endpoint failure preserves quotas and monthly usage without RPC model fallback', async () => {
+  const requests = [];
+  const result = await requestCodexUsage('fake', { spawn: () => appServer(responses, requests), fetch: async url => url.pathname.endsWith('/models') ? { ok: false, status: 403 } : route(url) });
+  assert.equal(result.windows.length, 2);
+  assert.equal(result.usage.limit, 10000);
+  assert.deepEqual(result.models, []);
+  assert.match(result.modelsError, /HTTP 403/);
+  assert.ok(!requests.some(request => request.method === 'model/list'));
+});
+
+test('shared transport rejects external origins before transmitting credentials', async () => {
+  const { readBackendJson } = require('../backend-transport');
+  let fetched = false;
+  await assert.rejects(readBackendJson('synthetic', 'workspace-test', 'https://example.com/backend-api/models', { fetch: async () => { fetched = true; } }), /not allowed/);
+  assert.equal(fetched, false);
+});
+
+
+test('credential process is closed before any backend request', async () => {
+  let stopped = false;
+  await requestCodexUsage('fake', { spawn: () => {
+    const child = appServer(responses, []);
+    const kill = child.kill;
+    child.kill = () => { stopped = true; kill(); };
+    return child;
+  }, fetch: async url => { assert.equal(stopped, true); return route(url); } });
 });

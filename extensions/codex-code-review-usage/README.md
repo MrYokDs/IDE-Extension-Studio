@@ -1,4 +1,4 @@
-# Codex Code Review & Usage 0.4.4
+# Codex Code Review & Usage 0.4.5
 
 Codex Code Review & Usage combines read-only change review with a Codex Usage panel styled after the AntigravityQuota status-bar monitor. The extension identity is `code-review-tools.code-review-usage`; it replaces `local-modpack.codex-review-bridge`.
 
@@ -6,7 +6,7 @@ When no display model is manually selected, the status bar uses the Codex catalo
 
 ## Codex usage
 
-All usage amounts and quota windows are read directly from the ChatGPT backend using the same signed-in account. Five-hour/weekly quotas use `/backend-api/wham/usage`; monthly usage uses the separate monthly endpoint described below. The app-server is used only for sign-in/account metadata and the model catalog, not `account/rateLimits/read`. The executable is bundled with the official **Codex ? OpenAI's coding agent** extension (`openai.chatgpt`), which must be installed and signed in. A separate `codex` command on PATH is not needed. Authentication files are never read or stored. If either backend endpoint fails, the other result is preserved; there is no quota fallback to app-server.
+All usage amounts and quota windows are read directly from the ChatGPT backend using the same signed-in account. Five-hour/weekly quotas use `/backend-api/wham/usage`; monthly usage uses the separate monthly endpoint described below. The app-server is used only for `getAuthStatus` sign-in, then closed before backend reads. Account/read, model/list and account/rateLimits/read are not called. The executable is bundled with the official **Codex ? OpenAI's coding agent** extension (`openai.chatgpt`), which must be installed and signed in. A separate `codex` command on PATH is not needed. Authentication files are never read or stored. If either backend endpoint fails, the other result is preserved; there is no quota fallback to app-server.
 
 Monthly usage uses the same read-only workspace monthly-usage endpoint found in the Codex desktop app. The extension obtains the existing account's authorization through the app-server `getAuthStatus` method, holds it only in memory, and sends it only to the fixed ChatGPT backend origin with redirects disabled. Account identity is checked before the request. Monthly amounts use the desktop's rounding and number grouping, for example **15 of 10,000 credits used**. This is an internal desktop endpoint rather than a documented stable third-party API; if it becomes unavailable, quota windows continue working and monthly usage shows unavailable. Tokens are never written to extension state, output logs, or the dashboard.
 
@@ -38,8 +38,12 @@ Search Settings for `Codex Code Review & Usage`. Changes apply immediately.
 
 ## Backend-only feasibility (investigated 2026-10-31)
 
-A read-only probe of `/backend-api/codex/models?client_version=0.164.0` with existing Codex authorization returned HTTP 200; the visible model IDs matched `model/list`. The catalog exposes ordering/visibility metadata rather than a direct `isDefault` flag. Production still uses app-server for the model catalog and existing sign-in.
+A read-only probe of `/backend-api/codex/models?client_version=0.164.0` with existing Codex authorization returned HTTP 200; the visible model IDs matched `model/list`. The catalog exposes ordering/visibility metadata rather than a direct `isDefault` flag. Version 0.4.5 reads the model catalog directly. The default is derived from the first visible model in ascending priority order; it is not a server-provided isDefault field or an observation of the active chat.
 
 [Independent OAuth registration](https://developers.openai.com/siwc/token-sharing-open-source/sign-in) is documented, but its tokens target the public API. [Model discovery for that flow](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) uses `/v1/models`. A new independent login has not been verified against the internal quota/monthly endpoints or the relevant Edu plan. Removing app-server completely therefore remains unverified; no new login flow or runtime change was shipped in this investigation.
 
-The independent OAuth trial was blocked before authorization by the workspace policy (`3p_delegated_access_policy_denied`). No independent access token was obtained, so internal quota/monthly compatibility remains untested. Keep existing Codex sign-in integration for this workspace unless its administrator enables the separate app authorization; model discovery can still be migrated independently using the existing authorization.
+The independent OAuth trial was blocked before authorization by the workspace policy (`3p_delegated_access_policy_denied`). No independent access token was obtained, so internal quota/monthly compatibility remains untested. Keep existing Codex sign-in integration for this workspace unless its administrator enables the separate app authorization; model discovery now uses the backend with the existing authorization.
+
+## Data boundary (0.4.5)
+
+`codex-auth.js` obtains credentials in memory through the installed Codex sign-in, and closes its child process before returning. `backend-client.js` coordinates independent quota, monthly and model reads. `backend-transport.js` owns endpoint paths, origin restrictions, authentication headers, redirects, cancellation and HTTP transport; schema mapping stays in focused modules. An endpoint failure does not discard other successful results. No credentials are returned to UI state. Models use the verified catalog compatibility parameter `client_version=0.164.0`, maintained centrally with endpoint routing. Independent OAuth remains disabled; no organization policy changes are required.

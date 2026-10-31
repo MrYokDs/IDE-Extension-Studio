@@ -1,5 +1,5 @@
 'use strict';
-const { readBackendJson } = require('./monthly-usage');
+const { readBackendJson, BACKEND_ROUTES } = require('./backend-transport');
 
 function normalizeBackendQuota(body) {
   const buckets = Object.create(null);
@@ -23,7 +23,7 @@ function normalizeBackendQuota(body) {
 }
 
 async function readBackendQuota(token, accountId, options = {}) {
-  try { return normalizeBackendQuota(await readBackendJson(token, accountId, '/backend-api/wham/usage', options)); }
+  try { return normalizeBackendQuota(await readBackendJson(token, accountId, BACKEND_ROUTES.quota, { ...options, label: 'Backend quota' })); }
   catch (error) {
     const status = /HTTP (\d+)/.exec(error?.message || '');
     throw new Error(status ? `Backend quota unavailable (HTTP ${status[1]})` : 'Backend quota request failed');

@@ -1,4 +1,5 @@
 'use strict';
+const { readBackendJson, BACKEND_ROUTES } = require('./backend-transport');
 
 function amount(value) {
   if (!['string', 'number'].includes(typeof value) || String(value).trim() === '') return null;
@@ -28,26 +29,8 @@ function describeMonthlyUsage(usage) {
   };
 }
 
-async function readBackendJson(token, accountId, pathname, options = {}) {
-  if (typeof token !== 'string' || !token || typeof accountId !== 'string' || !accountId) throw new Error('Backend usage requires an authenticated workspace');
-  let tokenAccount = null;
-  try {
-    tokenAccount = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))['https://api.openai.com/auth']?.chatgpt_account_id;
-  } catch {}
-  if (tokenAccount && tokenAccount !== accountId) throw new Error('Backend usage account routing differs from Codex');
-  const url = new URL(`https://chatgpt.com${pathname}`);
-  const fetchUsage = options.fetch || globalThis.fetch;
-  if (typeof fetchUsage !== 'function') throw new Error('Monthly usage network transport unavailable');
-  const response = await fetchUsage(url, {
-    method: 'GET', redirect: 'error', signal: options.signal || AbortSignal.timeout(12000),
-    headers: { Authorization: `Bearer ${token}`, 'ChatGPT-Account-ID': accountId, Accept: 'application/json', 'Cache-Control': 'no-store', Pragma: 'no-cache' }
-  });
-  if (!response.ok) throw new Error(`Monthly usage unavailable (HTTP ${response.status})`);
-  return response.json();
-}
-
 async function readMonthlyUsage(token, accountId, options = {}) {
-  const body = await readBackendJson(token, accountId, `/backend-api/accounts/${encodeURIComponent(accountId)}/spend-controls/current-user/monthly-usage?supports_usage_limit_modes=true`, options);
+  const body = await readBackendJson(token, accountId, BACKEND_ROUTES.monthly(accountId), { ...options, label: 'Monthly usage' });
   const usage = normalizeMonthlyUsage(body);
   if (!usage) throw new Error('Monthly spending limit not available for this account');
   return usage;
