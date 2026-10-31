@@ -35,3 +35,9 @@ Search Settings for `Codex Code Review & Usage`. Changes apply immediately.
 - `codexUsage.enabled`: enable/disable usage requests, status bar and dashboard (default true). An already running request may finish; its result is ignored while disabled.
 - `codexUsage.refreshIntervalSeconds`: refresh cadence for both dashboard and background (default 120 seconds, minimum effective 30). Set 0 for manual refresh only. Opening the dashboard still refreshes once.
 - `codexReview.autoOpen`: automatically open new review batches when review is enabled.
+
+## Backend-only feasibility (investigated 2026-10-31)
+
+A read-only probe of `/backend-api/codex/models?client_version=0.164.0` with existing Codex authorization returned HTTP 200; the visible model IDs matched `model/list`. The catalog exposes ordering/visibility metadata rather than a direct `isDefault` flag. Production still uses app-server for the model catalog and existing sign-in.
+
+[Independent OAuth registration](https://developers.openai.com/siwc/token-sharing-open-source/sign-in) is documented, but its tokens target the public API. [Model discovery for that flow](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) uses `/v1/models`. A new independent login has not been verified against the internal quota/monthly endpoints or the relevant Edu plan. Removing app-server completely therefore remains unverified; no new login flow or runtime change was shipped in this investigation.
