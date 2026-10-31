@@ -1,0 +1,92 @@
+{
+  "name": "code-review-usage",
+  "displayName": "Codex Code Review & Usage",
+  "description": "Review code changes and monitor Codex quotas and monthly credit usage.",
+  "version": "0.4.3",
+  "icon": "media/icon.png",
+  "publisher": "code-review-tools",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionDependencies": [
+    "openai.chatgpt"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  },
+  "contributes": {
+    "configurationDefaults": {
+      "diffEditor.renderSideBySide": false
+    },
+    "commands": [
+      {
+        "command": "codexReview.refresh",
+        "title": "Codex Review: Refresh Batches"
+      },
+      {
+        "command": "codexReview.openLatest",
+        "title": "Codex Review: Open Latest Batch"
+      },
+      {
+        "command": "codexUsage.open",
+        "title": "Codex Usage: Open Dashboard"
+      },
+      {
+        "command": "codexUsage.refresh",
+        "title": "Codex Usage: Refresh"
+      },
+      {
+        "command": "codexUsage.selectDisplayModel",
+        "title": "Codex Usage: Choose Display Model"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "codexReview.changes",
+          "name": "Codex Changes",
+          "when": "config.codexReview.enabled"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Codex Code Review & Usage",
+      "properties": {
+        "codexReview.autoOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open all added/modified files in pinned diff tabs and select the first. Deleted files remain in Codex Changes."
+        },
+        "codexUsage.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 0,
+          "description": "Automatic refresh interval in seconds, used by both the dashboard and background monitoring (minimum 30 seconds). Set to 0 for manual refresh only."
+        },
+        "codexReview.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable code review, change detection and review commands. Applies immediately."
+        },
+        "codexUsage.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Codex usage monitoring, status bar and dashboard. Disabling stops new usage requests immediately."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/core.test.js test/extension.test.js test/usage.test.js test/dashboard.test.js"
+  },
+  "license": "MIT"
+}

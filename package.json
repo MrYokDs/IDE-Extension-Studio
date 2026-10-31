@@ -1,0 +1,11 @@
+{
+  "name": "ide-extension-studio",
+  "version": "0.4.3",
+  "private": true,
+  "workspaces": [
+    "extensions/*"
+  ],
+  "scripts": {
+    "test": "node --test extensions/codex-review-bridge/test/core.test.js extensions/codex-review-bridge/test/extension.test.js extensions/codex-review-bridge/test/usage.test.js extensions/codex-review-bridge/test/dashboard.test.js"
+  }
+}

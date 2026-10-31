@@ -1,0 +1,22 @@
+# Publish only maintained source; preserve local evidence and tools on disk.
+/*
+!/.gitignore
+!/README.md
+!/package.json
+!/extensions/
+/extensions/*
+!/extensions/codex-review-bridge/
+!/tools/
+/tools/*
+!/tools/Build-ExtensionIcon.ps1
+# Never commit credentials, local snapshots, dependencies, or generated output.
+**/node_modules/
+**/__pycache__/
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/.codex-review/
+**/*.log
+**/*.tmp
+**/*.vsix
