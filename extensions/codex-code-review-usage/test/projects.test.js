@@ -30,18 +30,19 @@ test('grouping keeps separate folder identities with the same basename', () => {
   assert.equal(groups[1].name, 'repo'); assert.notEqual(groups[1].cwd, groups[2].cwd);
 });
 test('project tree opens only a listed chat through the official extension URI and defaults to current workspace', async () => {
-  const commands = new Map(), opened = [], noop = () => ({ dispose() {} }); let provider, selectedFolders;
+  const commands = new Map(), opened = [], focused = [], noop = () => ({ dispose() {} }); let provider, selectedFolders;
   const view = { visible: false, onDidChangeVisibility: noop, dispose() {} };
   const vscode = { EventEmitter: class { constructor() { this.event = noop; } fire() {} dispose() {} },
     TreeItem: class { constructor(label) { this.label = label; } }, TreeItemCollapsibleState: { Expanded: 2, None: 0 }, ThemeIcon: class {},
     Uri: { from: value => value }, env: { uriScheme: 'antigravity-ide', asExternalUri: async uri => uri, openExternal: async uri => { opened.push(uri); return true; } },
     window: { createTreeView: (_, options) => { provider = options.treeDataProvider; return view; } },
     workspace: { workspaceFolders: [{ uri: { fsPath: 'F:/project' } }], getConfiguration: () => ({ get: (_, fallback) => fallback }), onDidChangeConfiguration: noop },
-    commands: { registerCommand: (name, fn) => { commands.set(name, fn); return noop(); } } };
+    commands: { executeCommand: async name => { focused.push(name); }, registerCommand: (name, fn) => { commands.set(name, fn); return noop(); } } };
   const context = { subscriptions: [] };
   installCodexProjects(vscode, context, { executable: 'fake', list: async (_, folders) => { selectedFolders = folders; return { threads: [{ id: 'thread-1', name: 'Chat one', cwd: 'F:/project' }], truncated: false }; } });
   try {
-    await commands.get('codexProjects.refresh')(); assert.deepEqual(selectedFolders, ['F:/project']);
+    await commands.get('codexProjects.open')(); assert.deepEqual(focused, ['codexProjects.chats.focus']);
+    assert.deepEqual(selectedFolders, ['F:/project']);
     const group = provider.getChildren()[0]; assert.equal(group.name, 'project');
     const chat = provider.getChildren(group)[0]; assert.equal(provider.getTreeItem(chat).command.command, 'codexProjects.openChat');
     await commands.get('codexProjects.openChat')(chat);

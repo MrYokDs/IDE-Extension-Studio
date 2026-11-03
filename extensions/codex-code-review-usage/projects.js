@@ -88,6 +88,14 @@ function installCodexProjects(vscode, context, options = {}) {
   view = vscode.window.createTreeView('codexProjects.chats', { treeDataProvider: provider, showCollapseAll: true });
   context.subscriptions.push(changed, view,
     view.onDidChangeVisibility(event => { if (event.visible) refresh(); }),
+    vscode.commands.registerCommand('codexProjects.open', async () => {
+      if (!config().get('enabled', true)) {
+        vscode.window.showInformationMessage('Enable Codex Projects in Settings to open the project chat list.');
+        return;
+      }
+      await vscode.commands.executeCommand('codexProjects.chats.focus');
+      await refresh();
+    }),
     vscode.commands.registerCommand('codexProjects.refresh', refresh),
     vscode.commands.registerCommand('codexProjects.chooseScope', async () => {
       const pick = await vscode.window.showQuickPick([{ label: 'Current workspace', scope: 'workspace' }, { label: 'All projects', scope: 'all' }], { title: 'Codex Projects scope' });

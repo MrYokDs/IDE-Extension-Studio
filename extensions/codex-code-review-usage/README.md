@@ -73,3 +73,5 @@ Open **Codex Projects** in the Activity Bar for a separate Projects & Chats tree
 Folders group by their recorded cwd, which can differ from custom project labels/membership in the desktop app; worktrees or migrated paths can appear separately. Clicking a chat routes through the installed official extension URI handler (/local/thread-id). This is an internal IDE integration verified against installed Codex 26.1021.22027 and can change in later versions; live UI navigation remains a visual verification step. The original Codex Chats list is not patched or replaced.
 
 Settings: codexProjects.enabled (true) and codexProjects.scope (workspace/all). Selecting another project does not open its files or switch IDE workspaces automatically. Displaying a title list and navigating to an existing chat does not send a new model turn.
+
+Open the project list with Ctrl+Shift+P → Codex Projects: Open. After installing an update, run Developer: Reload Window if the command or activity-bar icon is missing. This is a separate view from the official Codex Chats panel.

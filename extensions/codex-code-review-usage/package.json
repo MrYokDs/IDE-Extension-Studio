@@ -2,7 +2,7 @@
   "name": "code-review-usage",
   "displayName": "Codex Code Review & Usage",
   "description": "Review code changes and monitor Codex and Antigravity IDE usage.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "icon": "media/icon.png",
   "publisher": "code-review-tools",
   "engines": {
@@ -28,6 +28,10 @@
       "diffEditor.renderSideBySide": false
     },
     "commands": [
+      {
+        "command": "codexProjects.open",
+        "title": "Codex Projects: Open"
+      },
       {
         "command": "codexReview.refresh",
         "title": "Codex Review: Refresh Batches"
