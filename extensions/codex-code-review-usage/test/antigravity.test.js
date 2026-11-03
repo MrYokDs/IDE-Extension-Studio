@@ -40,7 +40,7 @@ test('Antigravity page escapes backend text and shows grouped quota and separate
   const value = normalizeAntigravity(summary, status); value.models[0].name = '<script>bad()</script>';
   const html = renderAntigravity(value, null, Date.now(), 120);
   assert.ok(!html.includes('<script>bad()'));
-  assert.match(html, /command:codexUsage.open/);
+  assert.ok(!html.includes("<nav>"));
   assert.match(html, /width:82%/);
   assert.match(html, /Unavailable model/);
   assert.match(html, /not token counts/);
@@ -76,4 +76,39 @@ test('IDE discovery selects the current host and refuses to mix unrelated IDE pr
   await assert.rejects(discoverIDE({ platform: 'win32', hostPid: 99, run }), /Multiple/);
   assert.equal((await discoverIDE({ platform: 'win32', serverProcessId: 1, run }))[0].port, 20001);
   await assert.rejects(discoverIDE({ platform: 'win32', serverProcessId: 99, run }), /no longer running/);
+});
+
+
+test('status windows prefer five-hour quota unless the matching weekly quota is exhausted', () => {
+  const { primaryWindow, antigravitySelection } = require('../status-quota');
+  const hourly = { label: '5 hour', remainingPercent: 82 };
+  assert.equal(primaryWindow([hourly, { label: 'Weekly', remainingPercent: 5 }]), hourly);
+  assert.equal(primaryWindow([hourly, { label: 'Weekly', remainingPercent: 0 }]).label, 'Weekly');
+  const value = { models: [{ id: 'gemini-first', name: 'Gemini first', quota: { remainingPercent: 80 } }, { id: 'claude-second', name: 'Claude second', quota: { remainingPercent: 70 } }], groups: [
+    { family: 'gemini', windows: [{ label: 'Weekly', remainingPercent: 0 }] },
+    { family: 'third-party', windows: [{ label: 'Weekly', remainingPercent: 90 }] }
+  ] };
+  assert.equal(antigravitySelection(value, '').model.id, 'gemini-first');
+  assert.equal(antigravitySelection(value, '').window.label, 'Weekly');
+  assert.equal(antigravitySelection(value, 'claude-second').window.remainingPercent, 70);
+  assert.equal(antigravitySelection(value, 'removed-model').model.id, 'gemini-first');
+});
+
+test('Antigravity display model picker updates the status label and saves the selected ID', async () => {
+  const commands = new Map(), saved = [];
+  const noop = () => ({ dispose() {} });
+  const statusItem = { show() {}, dispose() {} };
+  const value = normalizeAntigravity(summary, status);
+  const vscode = { MarkdownString: class { constructor(value) { this.value = value; } }, window: { createStatusBarItem: () => statusItem, showQuickPick: async () => ({ modelId: value.models[1].id }) }, workspace: {
+    getConfiguration: () => ({ get: (key, fallback) => key === 'refreshIntervalSeconds' ? 0 : fallback }), onDidChangeConfiguration: noop
+  }, commands: { registerCommand: (name, fn) => { commands.set(name, fn); return noop(); } } };
+  const context = { subscriptions: [], workspaceState: { get: (_, fallback) => fallback, update: async (...args) => saved.push(args) } };
+  installAntigravityView(vscode, context, { read: async () => value });
+  try {
+    await commands.get('antigravityUsage.refresh')();
+    assert.match(statusItem.text, /Gemini example: 82%/);
+    await commands.get('antigravityUsage.selectDisplayModel')();
+    assert.match(statusItem.text, /Unavailable model/);
+    assert.equal(saved[0][1], value.models[1].id);
+  } finally { context.subscriptions.forEach(item => item.dispose()); }
 });

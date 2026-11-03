@@ -1,5 +1,6 @@
 'use strict';
 const { requestAntigravityUsage } = require('./antigravity');
+const { antigravitySelection } = require('./status-quota');
 const { createUsageDashboard } = require('./dashboard-panel');
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const date = value => {
@@ -21,10 +22,11 @@ function renderAntigravity(value, error, updated, seconds) {
   const track = percent => `<div class="track"><span style="width:${Math.max(0, Math.min(100, percent))}%"></span></div>`;
   const groups = (value?.groups || []).map(group => `<section><h2>${escape(group.name)}</h2>${group.windows.map(window => `<div class="row"><b>${escape(window.label)}</b><b>${window.remainingPercent}% remaining</b></div>${track(window.remainingPercent)}<p class="muted">Resets ${escape(date(window.resetsAt))}</p>`).join('')}</section>`).join('');
   const models = (value?.models || []).map(model => `<tr><td>${escape(model.name)}</td><td>${model.quota ? model.quota.remainingPercent + '%' : 'Unavailable'}</td><td>${model.quota ? escape(countdown(model.quota.resetsAt)) : 'Unavailable'}</td></tr>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>body{font:14px var(--vscode-font-family);color:var(--vscode-foreground);max-width:820px;margin:auto;padding:24px}section{padding:20px;border:1px solid var(--vscode-panel-border);border-radius:10px;margin:18px 0;background:var(--vscode-sideBar-background)}nav{display:flex;gap:24px;margin-bottom:24px}.row{display:flex;justify-content:space-between;gap:20px}.track{height:7px;background:#e56b6f;margin-top:12px;overflow:hidden;border-radius:5px}.track span{display:block;height:100%;background:#81cf83}.muted{color:var(--vscode-descriptionForeground);font-size:12px}table{width:100%;border-collapse:collapse}td,th{padding:10px;text-align:left;border-bottom:1px solid var(--vscode-panel-border)}a{color:var(--vscode-textLink-foreground)}</style></head><body><nav><a href="command:codexUsage.open">Codex</a><b>Antigravity</b></nav><h1>Antigravity Usage</h1><p>Plan: <b>${escape(value?.plan || 'Unavailable')}</b></p>${error ? `<p>${escape(error)}</p>` : ''}<p class="muted">Green: Remaining · Red: Used. Models in each group share weekly and five-hour quota.</p>${groups}${models ? `<section><h2>Models</h2><table><tr><th>Model</th><th>Remaining</th><th>Reset</th></tr>${models}</table><p class="muted">Model percentages are returned by the IDE service and may share quota. Group limits above are the account quota windows.</p></section>` : ''}<p class="muted">Token counts and credit balances are not reported here; quota percentages are not token counts.</p><p class="muted">Source: Antigravity IDE local service · Updated: ${escape(date(updated))} · Auto refresh: ${seconds ? seconds + ' seconds' : 'off'} · <a href="command:antigravityUsage.refresh">Refresh now</a></p></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>body{font:14px var(--vscode-font-family);color:var(--vscode-foreground);max-width:820px;margin:auto;padding:24px}section{padding:20px;border:1px solid var(--vscode-panel-border);border-radius:10px;margin:18px 0;background:var(--vscode-sideBar-background)}nav{display:flex;gap:24px;margin-bottom:24px}.row{display:flex;justify-content:space-between;gap:20px}.track{height:7px;background:#e56b6f;margin-top:12px;overflow:hidden;border-radius:5px}.track span{display:block;height:100%;background:#81cf83}.muted{color:var(--vscode-descriptionForeground);font-size:12px}table{width:100%;border-collapse:collapse}td,th{padding:10px;text-align:left;border-bottom:1px solid var(--vscode-panel-border)}a{color:var(--vscode-textLink-foreground)}</style></head><body><h1>Antigravity Usage</h1><p>Plan: <b>${escape(value?.plan || 'Unavailable')}</b></p>${error ? `<p>${escape(error)}</p>` : ''}<p class="muted">Green: Remaining · Red: Used. Models in each group share weekly and five-hour quota.</p>${groups}${models ? `<section><h2>Models</h2><table><tr><th>Model</th><th>Remaining</th><th>Reset</th></tr>${models}</table><p class="muted">Model percentages are returned by the IDE service and may share quota. Group limits above are the account quota windows.</p></section>` : ''}<p class="muted">Token counts and credit balances are not reported here; quota percentages are not token counts.</p><p class="muted">Source: Antigravity IDE local service · Updated: ${escape(date(updated))} · Auto refresh: ${seconds ? seconds + ' seconds' : 'off'} · <a href="command:antigravityUsage.refresh">Refresh now</a></p></body></html>`;
 }
 function installAntigravityView(vscode, context, options = {}) {
   let value = null, error = null, updated = null, timer, inFlight = null, controller, disposed = false, generation = 0;
+  let displayModel = context.workspaceState?.get('antigravityUsage.displayModel', '') || '';
   const config = () => vscode.workspace.getConfiguration('antigravityUsage');
   const enabled = () => config().get('enabled', true);
   const interval = () => { const n = Number(config().get('refreshIntervalSeconds', 120)); return Number.isFinite(n) && n > 0 ? Math.max(30, n) : 0; };
@@ -34,14 +36,15 @@ function installAntigravityView(vscode, context, options = {}) {
     render: () => renderAntigravity(value, error, updated, interval()), refresh: () => refresh(), onVisibilityChange: schedule });
   function update() {
     if (disposed || !enabled()) return;
-    const hourly = value?.groups.flatMap(group => group.windows).filter(window => window.label === '5 hour');
-    const remaining = hourly?.length ? Math.min(...hourly.map(window => window.remainingPercent)) : null;
-    status.text = remaining == null ? '$(pulse) Antigravity Usage' : `${remaining >= 60 ? '🟢' : remaining >= 25 ? '🟡' : '🔴'} Antigravity: ${remaining}%`;
+    const selected = antigravitySelection(value, displayModel);
+    const remaining = selected.window?.remainingPercent ?? null;
+    const modelName = selected.model?.name || 'Antigravity';
+    status.text = remaining == null ? `$(pulse) ${modelName}` : `${remaining >= 60 ? '🟢' : remaining >= 25 ? '🟡' : '🔴'} ${modelName}: ${remaining}%${selected.window.label === 'Weekly' ? ' (Weekly)' : ''}`;
     const cell = text => String(text).replace(/[\\|`*_[\]<>]/g, '\\$&').replace(/[\r\n]/g, ' ');
     const table = ['| Model | Remaining | Reset |', '| :--- | ---: | :--- |', ...(value?.models || []).map(model => `| ${cell(model.name)} | ${model.quota ? model.quota.remainingPercent + '%' : 'Unavailable'} | ${model.quota ? countdown(model.quota.resetsAt) : 'Unavailable'} |`)].join('\n');
-    const lines = ['**Antigravity Usage**', value?.plan ? `Plan: ${cell(value.plan)}` : '', error || '', ...(value?.groups || []).flatMap(group => [`**${cell(group.name)}**`, ...group.windows.map(window => `${cell(window.label)}: ${window.remainingPercent}% remaining · reset ${countdown(window.resetsAt)}`)]), table, '[Open Antigravity Usage](command:antigravityUsage.open)'];
+    const lines = ['**Antigravity Usage**', value?.plan ? `Plan: ${cell(value.plan)}` : '', error || '', ...(value?.groups || []).flatMap(group => [`**${cell(group.name)}**`, ...group.windows.map(window => `${cell(window.label)}: ${window.remainingPercent}% remaining · reset ${countdown(window.resetsAt)}`)]), table, '[Choose display model](command:antigravityUsage.selectDisplayModel)', '[Open Antigravity Usage](command:antigravityUsage.open)'];
     const tooltip = new vscode.MarkdownString(lines.filter(Boolean).join('\n\n'));
-    tooltip.isTrusted = { enabledCommands: ['antigravityUsage.open'] }; status.tooltip = tooltip;
+    tooltip.isTrusted = { enabledCommands: ['antigravityUsage.open', 'antigravityUsage.selectDisplayModel'] }; status.tooltip = tooltip;
   }
   async function refresh() {
     if (disposed || !enabled()) return;
@@ -64,6 +67,14 @@ function installAntigravityView(vscode, context, options = {}) {
   context.subscriptions.push(status, dashboard,
     vscode.commands.registerCommand('antigravityUsage.open', () => enabled() ? dashboard.open() : undefined),
     vscode.commands.registerCommand('antigravityUsage.refresh', refresh),
+    vscode.commands.registerCommand('antigravityUsage.selectDisplayModel', async () => {
+      if (!enabled()) return;
+      const picked = await vscode.window.showQuickPick([{ label: 'Use first available model', modelId: '' }, ...(value?.models || []).map(model => ({ label: model.name, modelId: model.id }))], { title: 'Choose Antigravity display model', placeHolder: 'Status display only; does not change the chat model' });
+      if (!picked) return;
+      displayModel = picked.modelId;
+      await context.workspaceState.update('antigravityUsage.displayModel', displayModel);
+      update();
+    }),
     { dispose() { disposed = true; generation++; clearTimeout(timer); clearInterval(countdownTimer); controller?.abort(); } });
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
     if (!event.affectsConfiguration('antigravityUsage')) return;

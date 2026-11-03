@@ -3,6 +3,7 @@ const vscode = require('vscode');
 const fs = require('node:fs');
 const { safeFile, readBatch, hash, text } = require('./core');
 const { resolveCodexExtensionExecutable, requestCodexUsage } = require('./usage');
+const { primaryWindow } = require('./status-quota');
 const { describeMonthlyUsage } = require('./monthly-usage');
 const { installAntigravityView } = require('./antigravity-view');
 const { createUsageDashboard } = require('./dashboard-panel');
@@ -89,10 +90,11 @@ function activate(context) {
   function updateUsageStatus() {
     if (disposed || !usageEnabled()) return;
     const defaultModel = codexUsage?.models?.find(model => model.isDefault)?.name;
-    const hourly = codexUsage?.windows?.find(window => window.label === '5 hour') || codexUsage?.windows?.find(window => window.label === '15 minute') || codexUsage?.windows?.[0];
+    const codexWindows = codexUsage?.windows?.filter(window => window.model === 'codex');
+    const hourly = primaryWindow(codexWindows?.length ? codexWindows : codexUsage?.windows);
     if (hourly) {
       const remaining = hourly.remainingPercent;
-      status.text = `${remaining >= 60 ? '🟢' : remaining >= 25 ? '🟡' : '🔴'} ${displayModel || defaultModel || 'Codex'}: ${remaining}%`;
+      status.text = `${remaining >= 60 ? '🟢' : remaining >= 25 ? '🟡' : '🔴'} ${displayModel || defaultModel || 'Codex'}: ${remaining}%${hourly.label === 'Weekly' ? ' (Weekly)' : ''}`;
       status.color = undefined;
     } else if (codexError) { status.text = '$(warning) Codex unavailable'; status.color = undefined; }
     else { status.text = '$(pulse) Codex Usage'; status.color = undefined; }
@@ -100,7 +102,7 @@ function activate(context) {
     const resetIndent = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
     const modelLines = (codexUsage?.models || []).map(model => `| ${markdownCell(model.name)} | ${shared ? `${shared.remainingPercent}%` : 'Unavailable'} | ${resetIndent}${shared ? resetCountdown(shared.resetsAt) : 'Unavailable'} |`);
     const modelTable = modelLines.length ? [`| Model | Remaining | ${resetIndent}Reset |`, '| :--- | ---: | :--- |', ...modelLines].join('\n') : null;
-    const windowTable = codexUsage?.windows?.length ? [`| Limit | Remaining | ${resetIndent}Reset |`, '| :--- | ---: | :--- |', ...codexUsage.windows.map(window => `| ${markdownCell(`${window.model} · ${window.label}`)} | ${window.remainingPercent}% | ${resetIndent}${resetCountdown(window.resetsAt)} |`)].join('\n') : null;
+    const windowTable = codexUsage?.windows?.length ? [`| Limit | Remaining | ${resetIndent}Reset |`, '| :--- | ---: | :--- |', ...codexUsage.windows.map(window => `| ${markdownCell(window.label)} | ${window.remainingPercent}% | ${resetIndent}${resetCountdown(window.resetsAt)} |`)].join('\n') : null;
     const creditsBalance = codexUsage?.credits?.balance ?? codexUsage?.windows?.map(window => window.credits?.balance).find(value => value != null) ?? null;
     const logo = vscode.Uri.joinPath(context.extensionUri, 'media', 'chatgpt.svg');
     const monthlySummary = describeMonthlyUsage(codexUsage?.usage);
@@ -163,13 +165,13 @@ function activate(context) {
       : `<p class="muted">Monthly usage unavailable. ${escapeHtml(codexUsage?.monthlyError || '')}</p>`;
     const rows = codexUsage?.windows?.map(window => {
       const remaining = Math.max(0, Math.min(100, window.remainingPercent));
-      return `<div class="quota-row"><div class="row-head"><strong>${escapeHtml(window.model)} · ${escapeHtml(window.label)}</strong><b>${remaining}% left</b></div>${quotaTrack(remaining)}<div class="muted">${100 - remaining}% used · resets ${escapeHtml(resetText(window.resetsAt))}</div></div>`;
+      return `<div class="quota-row"><div class="row-head"><strong>${escapeHtml(window.label)}</strong><b>${remaining}% left</b></div>${quotaTrack(remaining)}<div class="muted">${100 - remaining}% used · resets ${escapeHtml(resetText(window.resetsAt))}</div></div>`;
     }).join('') || '';
     const modelQuota = codexUsage?.windows?.find(window => window.label === '5 hour') || codexUsage?.windows?.[0];
     const modelRows = (codexUsage?.models || []).map(model => `<div class="model-row"><span>${escapeHtml(model.name)}${model.isDefault ? ' <span class="muted">(Codex default)</span>' : ''}</span><b>${modelQuota ? `${modelQuota.remainingPercent}% · resets ${escapeHtml(resetText(modelQuota.resetsAt))}` : 'Quota unavailable'}</b></div>`).join('');
     const message = codexError || 'Codex has not returned quota buckets for this account.';
     const credits = codexUsage?.credits?.balance ?? codexUsage?.windows?.map(window => window.credits?.balance).find(value => value != null) ?? null;
-    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>body{font:14px var(--vscode-font-family);color:var(--vscode-foreground);padding:24px;max-width:820px;margin:auto}h1{font-size:26px;margin:0 0 18px}.card{border:1px solid var(--vscode-panel-border);border-radius:10px;padding:18px;margin:16px 0;background:var(--vscode-sideBar-background)}.plan{margin:12px 0 18px}.quota-row{padding:14px 0;border-bottom:1px solid var(--vscode-panel-border)}.quota-row:last-child{border-bottom:1px solid var(--vscode-panel-border)}.row-head{display:flex;justify-content:space-between;gap:20px;margin-bottom:9px}.track{height:7px;border-radius:8px;background:#e56b6f;margin:0 0 10px;overflow:hidden}.track span{display:block;height:100%;border-radius:0;background:#81cf83}.track span.remaining{background:#81cf83}.muted{color:var(--vscode-descriptionForeground);font-size:12px;margin-top:5px}.credits{padding-top:14px}.model-row{display:flex;justify-content:space-between;gap:20px;padding:8px 0;border-bottom:1px solid var(--vscode-panel-border)}.notice{color:var(--vscode-errorForeground)}</style></head><body><nav><b>Codex</b> &nbsp; <a href="command:antigravityUsage.open">Antigravity</a></nav><h1>Codex Usage</h1><div class="card"><p class="plan"><b>Plan:</b> ${escapeHtml(displayPlan(codexUsage?.plan))}</p><p class="muted">Green: Remaining · Red: Used</p>${monthly}${rows || `<p class="notice">${escapeHtml(message)}</p>`}${credits != null ? `<div class="credits"><p><b>Workspace credits balance:</b> ${escapeHtml(credits)}</p></div>` : ''}</div>${!modelRows && codexUsage?.modelsError ? `<p class="notice">${escapeHtml(codexUsage.modelsError)}</p>` : ''}${modelRows ? `<h2>Available models</h2><div class="card">${modelRows}<p class="muted">These models share the same Codex quota; the percentage is not measured separately per model. “Codex default” is not necessarily the model selected in the current chat.</p></div>` : ''}<p class="muted">Updated: ${escapeHtml(resetText(lastUsageRefreshAt))} · Auto refresh: ${refreshSeconds() ? `${refreshSeconds()} seconds` : 'off'}. <a href="command:codexUsage.refresh">Refresh now</a></p></body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>body{font:14px var(--vscode-font-family);color:var(--vscode-foreground);padding:24px;max-width:820px;margin:auto}h1{font-size:26px;margin:0 0 18px}.card{border:1px solid var(--vscode-panel-border);border-radius:10px;padding:18px;margin:16px 0;background:var(--vscode-sideBar-background)}.plan{margin:12px 0 18px}.quota-row{padding:14px 0;border-bottom:1px solid var(--vscode-panel-border)}.quota-row:last-child{border-bottom:1px solid var(--vscode-panel-border)}.row-head{display:flex;justify-content:space-between;gap:20px;margin-bottom:9px}.track{height:7px;border-radius:8px;background:#e56b6f;margin:0 0 10px;overflow:hidden}.track span{display:block;height:100%;border-radius:0;background:#81cf83}.track span.remaining{background:#81cf83}.muted{color:var(--vscode-descriptionForeground);font-size:12px;margin-top:5px}.credits{padding-top:14px}.model-row{display:flex;justify-content:space-between;gap:20px;padding:8px 0;border-bottom:1px solid var(--vscode-panel-border)}.notice{color:var(--vscode-errorForeground)}</style></head><body><h1>Codex Usage</h1><div class="card"><p class="plan"><b>Plan:</b> ${escapeHtml(displayPlan(codexUsage?.plan))}</p><p class="muted">Green: Remaining · Red: Used</p>${monthly}${rows || `<p class="notice">${escapeHtml(message)}</p>`}${credits != null ? `<div class="credits"><p><b>Workspace credits balance:</b> ${escapeHtml(credits)}</p></div>` : ''}</div>${!modelRows && codexUsage?.modelsError ? `<p class="notice">${escapeHtml(codexUsage.modelsError)}</p>` : ''}${modelRows ? `<h2>Available models</h2><div class="card">${modelRows}<p class="muted">These models share the same Codex quota; the percentage is not measured separately per model. “Codex default” is not necessarily the model selected in the current chat.</p></div>` : ''}<p class="muted">Updated: ${escapeHtml(resetText(lastUsageRefreshAt))} · Auto refresh: ${refreshSeconds() ? `${refreshSeconds()} seconds` : 'off'}. <a href="command:codexUsage.refresh">Refresh now</a></p></body></html>`;
   }
   async function openFile(item, preserveFocus = false) {
     if (!reviewEnabled()) return;

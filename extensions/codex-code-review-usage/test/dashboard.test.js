@@ -101,6 +101,7 @@ test('extension polling updates dashboard and status from one read and coalesces
     setTimeout: setTimer, clearTimeout: timer => timers.delete(timer?.id), setInterval: () => ({ unref() {} }), clearInterval() {},
     require: name => {
       if (name === './antigravity-view') return { installAntigravityView() {} };
+      if (name === './status-quota') return require('../status-quota');
       if (name === 'vscode') return mock;
       if (name === './core') return require('../core');
       if (name === './monthly-usage') return require('../monthly-usage');
@@ -123,6 +124,8 @@ test('extension polling updates dashboard and status from one read and coalesces
     assert.match(status.text, /55%/);
     assert.match(status.tooltip, /Plan: \*\*ChatGPT Education \(Edu\)\*\*/);
     assert.match(rendered.at(-1), /55% left/);
+    assert.ok(!rendered.at(-1).includes("<nav>"));
+    assert.ok(!rendered.at(-1).includes("<strong>codex"));
     assert.match(rendered.at(-1), /Plan:<\/b> ChatGPT Education \(Edu\)/);
     assert.match(rendered.at(-1), /class="remaining" style="width:55%"/);
     assert.match(rendered.at(-1), /class="remaining" style="width:99\.85%"/);

@@ -52,7 +52,7 @@ The independent OAuth trial was blocked before authorization by the workspace po
 
 Only `openai.chatgpt` is required for existing Codex sign-in. antigravityQuota is not a dependency and its API/data is not used. An older separately installed copy is not automatically uninstalled; disable it if you want to avoid duplicate quota items.
 
-## Antigravity IDE (0.5.1)
+## Antigravity IDE (0.5.2)
 
 On Windows, **Antigravity IDE** must be running, signed in, and have its language server initialized (open the agent panel if needed). The separate white-icon Antigravity desktop app is not required and is not used as fallback. No antigravityQuota dependency is needed.
 
@@ -61,3 +61,7 @@ The extension discovers only the IDE-installed language_server_windows_x64.exe w
 Read-only RetrieveUserQuotaSummary (forceRefresh=false) and GetUserStatus supply group weekly/five-hour quotas and model snapshots. Runtime CSRF is in memory only; no credential files or browser cookies are read. Local HTTPS retains a request-scoped self-signed certificate exception for 127.0.0.1 only. Source is labeled Antigravity IDE local service. Missing token totals/credit balances are not inferred from percentages.
 
 The separate dashboard/status item and antigravityUsage.enabled / refreshIntervalSeconds settings are unchanged. Codex and code review work independently. Current source detection supports Windows only; the internal service may change between IDE releases.
+
+## Status display (0.5.2)
+
+Open each dashboard from its bottom status-bar item; dashboard headers no longer contain provider navigation. Codex window headings use Five hour/Weekly labels without the redundant codex bucket prefix. Antigravity displays the first model by default; Choose Display Model in its popup/command palette stores a manual display choice per workspace, without changing the active chat model. Each status item normally displays five-hour remaining quota. If the corresponding weekly remaining percentage is zero, it displays 0% (Weekly) instead. Antigravity uses the selected model's matching quota family, so an exhausted Gemini pool does not mask an available Claude/GPT pool.

@@ -15,6 +15,7 @@ function quota(value) {
 function normalizeAntigravity(summary, status) {
   const user = status?.userStatus;
   const groups = (Array.isArray(summary?.response?.groups) ? summary.response.groups : []).map((group, index) => ({
+    family: (Array.isArray(group.buckets) ? group.buckets : []).some(bucket => String(bucket.bucketId || '').startsWith('gemini-')) ? 'gemini' : (Array.isArray(group.buckets) ? group.buckets : []).some(bucket => String(bucket.bucketId || '').startsWith('3p-')) ? 'third-party' : null,
     name: typeof group.displayName === 'string' ? group.displayName : `Group ${index + 1}`,
     windows: (Array.isArray(group.buckets) ? group.buckets : []).flatMap(bucket => {
       const value = quota(bucket);

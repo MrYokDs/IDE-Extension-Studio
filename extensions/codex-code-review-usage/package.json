@@ -2,7 +2,7 @@
   "name": "code-review-usage",
   "displayName": "Codex Code Review & Usage",
   "description": "Review code changes and monitor Codex and Antigravity IDE usage.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "icon": "media/icon.png",
   "publisher": "code-review-tools",
   "engines": {
@@ -55,6 +55,10 @@
       {
         "command": "antigravityUsage.refresh",
         "title": "Antigravity Usage: Refresh"
+      },
+      {
+        "command": "antigravityUsage.selectDisplayModel",
+        "title": "Antigravity Usage: Choose Display Model"
       }
     ],
     "views": {
