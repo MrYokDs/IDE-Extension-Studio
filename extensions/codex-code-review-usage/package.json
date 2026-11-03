@@ -1,8 +1,8 @@
 {
   "name": "code-review-usage",
   "displayName": "Codex Code Review & Usage",
-  "description": "Review code changes and monitor Codex and Antigravity desktop usage.",
-  "version": "0.5.0",
+  "description": "Review code changes and monitor Codex and Antigravity IDE usage.",
+  "version": "0.5.1",
   "icon": "media/icon.png",
   "publisher": "code-review-tools",
   "engines": {
@@ -93,13 +93,19 @@
         "antigravityUsage.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Monitor Antigravity desktop usage independently of other quota extensions. Requires the white-icon desktop app running and signed in; Windows only."
+          "description": "Monitor Antigravity IDE usage without the separate desktop app or quota extensions. Requires IDE signed in with its language server running; Windows only."
         },
         "antigravityUsage.refreshIntervalSeconds": {
           "type": "number",
           "default": 120,
           "minimum": 0,
-          "description": "Antigravity desktop refresh interval in seconds (minimum effective 30). Set 0 for manual refresh only."
+          "description": "Antigravity IDE refresh interval in seconds (minimum effective 30). Set 0 for manual refresh only."
+        },
+        "antigravityUsage.serverProcessId": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "description": "0 selects the current extension host language server automatically. Set a specific IDE language-server process ID only if automatic selection is ambiguous; update it after that server restarts."
         }
       }
     }

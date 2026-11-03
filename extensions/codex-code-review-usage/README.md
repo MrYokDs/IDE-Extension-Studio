@@ -52,16 +52,12 @@ The independent OAuth trial was blocked before authorization by the workspace po
 
 Only `openai.chatgpt` is required for existing Codex sign-in. antigravityQuota is not a dependency and its API/data is not used. An older separately installed copy is not automatically uninstalled; disable it if you want to avoid duplicate quota items.
 
-## Antigravity desktop (0.5.0)
+## Antigravity IDE (0.5.1)
 
-On Windows, the separate white-icon **Antigravity desktop** app must be running and signed in. Antigravity IDE alone does not provide this data source. The extension discovers the desktop-owned `language_server.exe` and its listening ports, then uses local read-only `RetrieveUserQuotaSummary` and `GetUserStatus` calls. The desktop process runtime CSRF value is held only in memory. No Google credential files, browser cookies, credential databases, or remote OAuth tokens are read.
+On Windows, **Antigravity IDE** must be running, signed in, and have its language server initialized (open the agent panel if needed). The separate white-icon Antigravity desktop app is not required and is not used as fallback. No antigravityQuota dependency is needed.
 
-Click the new Antigravity status item for its own reusable dashboard tab. Navigation links connect Codex and Antigravity dashboards. The grouped weekly/five-hour quotas are shown separately from per-model quota returned by the service; models in a group share allowance. Missing model quota is Unavailable, never inferred as zero. Absolute model token counts and credit balances are not claimed by this page.
+The extension discovers only the IDE-installed language_server_windows_x64.exe with subclient_type=ide and its process-owned loopback listeners. It prefers the server parented by the current extension host; when multiple unrelated IDE servers make automatic selection ambiguous, it reports an error instead of mixing accounts. `antigravityUsage.serverProcessId` can select the intended server explicitly; this ID must be updated if the process restarts. Keep 0 for automatic selection.
 
-Settings: `antigravityUsage.enabled` (default true) and `antigravityUsage.refreshIntervalSeconds` (default 120; minimum effective 30; 0 for manual refresh). These work independently from Codex settings. No agent turns are sent; the local summary read uses `forceRefresh: false`.
+Read-only RetrieveUserQuotaSummary (forceRefresh=false) and GetUserStatus supply group weekly/five-hour quotas and model snapshots. Runtime CSRF is in memory only; no credential files or browser cookies are read. Local HTTPS retains a request-scoped self-signed certificate exception for 127.0.0.1 only. Source is labeled Antigravity IDE local service. Missing token totals/credit balances are not inferred from percentages.
 
-The current local discovery implementation is Windows-only. Failure to locate or read Antigravity is shown in its page and does not interrupt Codex or code review. Antigravity's local HTTPS service uses a self-signed certificate, like its desktop wrapper: the TLS exception is restricted to each request to 127.0.0.1 on a freshly discovered desktop process-owned port. There are no redirects or global TLS-setting changes. The internal API can change between app versions. The existing original extension name/identifier is retained.
-
-## Antigravity IDE source feasibility (2026-11-03)
-
-A separate read-only investigation of Antigravity IDE 2.5.5 confirmed that its own process-owned local language server returns grouped five-hour/weekly quotas and per-model status through the same RPC methods. The white-icon desktop process was not used for these IDE requests. This establishes IDE-source feasibility, not an automatic source switch: production 0.5.0 still selects the desktop app. IDE catalog membership/reset snapshots can vary by process, and an implementation must choose the intended IDE workspace/account rather than silently mixing sources. Absolute token counts remain unavailable.
+The separate dashboard/status item and antigravityUsage.enabled / refreshIntervalSeconds settings are unchanged. Codex and code review work independently. Current source detection supports Windows only; the internal service may change between IDE releases.

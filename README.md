@@ -6,7 +6,7 @@ Home of **Codex Code Review & Usage**, a VS Code-compatible extension developed 
 
 - Read-only code review using recorded change batches: pinned filename-only tabs, first file selected, single-column diffs.
 - Codex five-hour and weekly quotas, monthly credit usage when available, and model catalog display.
-- Independent Antigravity desktop quota dashboard and status bar on Windows, without antigravityQuota. The white-icon Antigravity desktop app must be running and signed in.
+- Independent Antigravity IDE quota dashboard and status bar on Windows, without antigravityQuota. Antigravity IDE must be running and signed in; the separate white-icon desktop app is not required.
 - Status-bar popup and a single updating dashboard with green remaining / red used bars.
 - Independent Code Review and Usage switches; configurable refresh interval (120 seconds by default, minimum 30 seconds; 0 for manual refresh).
 
@@ -20,7 +20,7 @@ Requirements: Node.js 20+ and Python 3. No npm dependencies are required for the
 
 ```sh
 npm test
-python extensions/codex-code-review-usage/package_vsix.py releases/code-review-usage-0.5.0.vsix
+python extensions/codex-code-review-usage/package_vsix.py releases/code-review-usage-0.5.1.vsix
 ```
 
 Install the generated VSIX using **Extensions: Install from VSIX** and reload the IDE. The packager requires a new output filename for each build.

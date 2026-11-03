@@ -26,20 +26,24 @@ function normalizeAntigravity(summary, status) {
   }));
   const tier = user?.planStatus?.planInfo?.teamsTier;
   const plan = { TEAMS_TIER_PRO: 'Google AI Pro', TEAMS_TIER_ULTRA: 'Google AI Ultra', TEAMS_TIER_FREE: 'Free' }[tier] || (typeof tier === 'string' ? tier : null);
-  if (!groups.length && !models.some(model => model.quota)) throw new Error('Antigravity returned no quota data. Confirm the desktop app is signed in.');
-  return { groups, models, plan, source: 'antigravity-desktop-local', tokenUsage: null };
+  if (!groups.length && !models.some(model => model.quota)) throw new Error('Antigravity returned no quota data. Confirm the IDE is signed in.');
+  return { groups, models, plan, source: 'antigravity-ide-local', tokenUsage: null };
 }
-async function discoverDesktop(options = {}) {
-  if ((options.platform || process.platform) !== 'win32') throw new Error('Antigravity desktop discovery currently supports Windows only.');
-  const script = String.raw`Get-CimInstance Win32_Process -Filter "Name = 'language_server.exe'" | Where-Object { $_.ExecutablePath -match '[\\/]antigravity[\\/]resources[\\/]bin[\\/]language_server.exe$' } | ForEach-Object { $p = $_; $ports = @(Get-NetTCPConnection -OwningProcess $p.ProcessId -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -in @('127.0.0.1','0.0.0.0','::1','::') } | Select-Object -ExpandProperty LocalPort -Unique); [pscustomobject]@{ command=$p.CommandLine; ports=$ports } } | ConvertTo-Json -Depth 4 -Compress`;
+async function discoverIDE(options = {}) {
+  if ((options.platform || process.platform) !== 'win32') throw new Error('Antigravity IDE discovery currently supports Windows only.');
+  const script = String.raw`Get-CimInstance Win32_Process -Filter "Name = 'language_server_windows_x64.exe'" | Where-Object { $_.ExecutablePath -match '[\\/]Antigravity IDE[\\/]resources[\\/]app[\\/]extensions[\\/]antigravity[\\/]bin[\\/]language_server_windows_x64.exe$' } | ForEach-Object { $p = $_; $ports = @(Get-NetTCPConnection -OwningProcess $p.ProcessId -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -in @('127.0.0.1','0.0.0.0','::1','::') } | Select-Object -ExpandProperty LocalPort -Unique); [pscustomobject]@{ pid=$p.ProcessId; parentPid=$p.ParentProcessId; command=$p.CommandLine; ports=$ports } } | ConvertTo-Json -Depth 4 -Compress`;
   let stdout;
   try { ({ stdout } = await (options.run || run)('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, timeout: 10000, maxBuffer: 1024 * 1024 })); }
-  catch { throw new Error('Antigravity desktop process discovery failed. Check Windows process access.'); }
+  catch { throw new Error('Antigravity IDE process discovery failed. Check Windows process access.'); }
   let values;
-  try { values = stdout.trim() ? JSON.parse(stdout) : []; } catch { throw new Error('Antigravity desktop discovery returned invalid data.'); }
-  return (Array.isArray(values) ? values : [values]).flatMap(value => {
+  try { values = stdout.trim() ? JSON.parse(stdout) : []; } catch { throw new Error('Antigravity IDE discovery returned invalid data.'); }
+  const servers = (Array.isArray(values) ? values : [values]).filter(value => /--subclient_type(?:=|\s+)ide\b/.test(value.command || ''));
+  const selected = options.serverProcessId ? servers.filter(value => value.pid === options.serverProcessId) : servers.filter(value => value.parentPid === (options.hostPid || process.pid));
+  if (options.serverProcessId && !selected.length) throw new Error('Selected Antigravity IDE server is no longer running. Update Server Process Id or set it to 0.');
+  if (!selected.length && servers.length > 1) throw new Error('Multiple Antigravity IDE servers found. Set Antigravity Usage: Server Process Id to the intended IDE server.');
+  return (selected.length ? selected : servers).flatMap(value => {
     const command = value.command || '';
-    if (!command.includes('--standalone') || !/--subclient_type(?:=|\s+)hub\b/.test(command)) return [];
+    if (!/--subclient_type(?:=|\s+)ide\b/.test(command)) return [];
     const token = /--csrf_token(?:=|\s+)["']?([^\s"']+)/.exec(command)?.[1];
     return token ? (Array.isArray(value.ports) ? value.ports : []).filter(port => Number.isInteger(port) && port > 0 && port <= 65535).map(port => ({ port, token })) : [];
   });
@@ -49,7 +53,7 @@ function localRead(endpoint, method, options = {}) {
   return new Promise(resolve => {
     if (options.signal?.aborted) return resolve(null);
     const body = JSON.stringify(method === 'RetrieveUserQuotaSummary' ? { request: {}, forceRefresh: false } : {});
-    // The desktop uses a self-signed certificate on its process-owned loopback port.
+    // The IDE uses a self-signed certificate on its process-owned loopback port.
     // This exception is local to this request: no remote host, redirects or global TLS changes.
     const request = https.request({ hostname: '127.0.0.1', port: endpoint.port, path: SERVICE + method, method: 'POST', rejectUnauthorized: false,
       headers: { 'Content-Type': 'application/json', 'Connect-Protocol-Version': '1', 'X-Codeium-Csrf-Token': endpoint.token }, signal: options.signal }, response => {
@@ -65,8 +69,8 @@ function localRead(endpoint, method, options = {}) {
 async function requestAntigravityUsage(options = {}) {
   const read = options.read || localRead;
   const signal = options.signal || AbortSignal.timeout(15000);
-  const candidates = await (options.discover || discoverDesktop)(options);
-  if (!candidates.length) { cached = null; throw new Error('Open the Antigravity desktop app (white icon) and sign in. Antigravity IDE alone is not the data source.'); }
+  const candidates = await (options.discover || discoverIDE)(options);
+  if (!candidates.length) { cached = null; throw new Error('Open Antigravity IDE, sign in and start its agent panel so the language server is running. The white-icon app is not required.'); }
   if (cached) candidates.sort((a, b) => Number(b.port === cached.port && b.token === cached.token) - Number(a.port === cached.port && a.token === cached.token));
   for (const endpoint of candidates) {
     if (signal.aborted) break;
@@ -76,6 +80,6 @@ async function requestAntigravityUsage(options = {}) {
     try { const value = normalizeAntigravity(summary, status); cached = endpoint; return value; } catch {}
   }
   cached = null;
-  throw new Error('Antigravity desktop quota service is not ready or unavailable. Open the app and refresh.');
+  throw new Error('Antigravity IDE quota service is not ready or unavailable. Open the app and refresh.');
 }
-module.exports = { requestAntigravityUsage, normalizeAntigravity, discoverDesktop };
+module.exports = { requestAntigravityUsage, normalizeAntigravity, discoverIDE };

@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeAntigravity, discoverDesktop, requestAntigravityUsage } = require('../antigravity');
+const { normalizeAntigravity, discoverIDE, requestAntigravityUsage } = require('../antigravity');
 const { renderAntigravity, installAntigravityView } = require('../antigravity-view');
 const summary = { response: { groups: [{ displayName: 'Gemini Models', buckets: [{ window: '5h', remainingFraction: 0.82, resetTime: '2026-11-04T00:00:00Z' }, { window: 'weekly', remainingFraction: 0.5, resetTime: '2026-11-10T00:00:00Z' }] }] } };
 const status = { userStatus: { email: 'must-not-return@example.com', apiKey: 'must-not-return', planStatus: { planInfo: { teamsTier: 'TEAMS_TIER_PRO' } }, cascadeModelConfigData: { clientModelConfigs: [{ label: 'Gemini example', modelId: 'example', quotaInfo: { remainingFraction: 0.82, resetTime: '2026-11-04T00:00:00Z' } }, { label: 'Unavailable model', quotaInfo: {} }] } } };
@@ -15,15 +15,15 @@ test('Antigravity maps real grouped windows and model quota without exposing ide
   assert.ok(!JSON.stringify(value).includes('must-not-return'));
   assert.throws(() => normalizeAntigravity({}, {}), /no quota/);
 });
-test('desktop discovery accepts only standalone hub runtime and valid process-owned ports', async () => {
+test('desktop discovery accepts only IDE runtime and valid process-owned ports', async () => {
   let script;
-  const endpoints = await discoverDesktop({ platform: 'win32', run: async (_, args, options) => {
+  const endpoints = await discoverIDE({ platform: 'win32', run: async (_, args, options) => {
     script = args.at(-1); assert.equal(options.windowsHide, true);
-    return { stdout: JSON.stringify([{ command: '--standalone --subclient_type hub --csrf_token synthetic-test-token', ports: [12345, 0, 'bad', 70000] }, { command: '--csrf_token ide-test-token', ports: [22222] }]) };
+    return { stdout: JSON.stringify([{ command: '--enable_lsp --subclient_type ide --csrf_token synthetic-test-token', ports: [12345, 0, 'bad', 70000] }, { command: '--csrf_token ide-test-token', ports: [22222] }]) };
   } });
   assert.deepEqual(endpoints, [{ port: 12345, token: 'synthetic-test-token' }]);
-  assert.ok(script.includes(String.raw`[\\/]antigravity[\\/]resources`));
-  await assert.rejects(discoverDesktop({ platform: 'darwin' }), /Windows only/);
+  assert.ok(script.includes(String.raw`[\\/]Antigravity IDE[\\/]resources`));
+  await assert.rejects(discoverIDE({ platform: 'darwin' }), /Windows only/);
 });
 test('reader tries process-owned candidates and sanitizes returned data', async () => {
   const methods = [];
@@ -34,7 +34,7 @@ test('reader tries process-owned candidates and sanitizes returned data', async 
   assert.equal(result.models.length, 2);
   assert.ok(!JSON.stringify(result).includes('synthetic-test-token'));
   assert.ok(methods.every(method => ['RetrieveUserQuotaSummary', 'GetUserStatus'].includes(method)));
-  await assert.rejects(requestAntigravityUsage({ discover: async () => [] }), /white icon/);
+  await assert.rejects(requestAntigravityUsage({ discover: async () => [] }), /white-icon/);
 });
 test('Antigravity page escapes backend text and shows grouped quota and separate provider navigation', () => {
   const value = normalizeAntigravity(summary, status); value.models[0].name = '<script>bad()</script>';
@@ -66,4 +66,14 @@ test('Antigravity lifecycle coalesces requests and prevents disabled late respon
     await commands.get('antigravityUsage.refresh')();
     assert.equal(calls, 1);
   } finally { context.subscriptions.forEach(item => item.dispose()); }
+});
+
+
+test('IDE discovery selects the current host and refuses to mix unrelated IDE processes', async () => {
+  const values = [1, 2].map(pid => ({ pid, parentPid: pid * 10, command: '--subclient_type ide --csrf_token synthetic-test-token', ports: [20000 + pid] }));
+  const run = async () => ({ stdout: JSON.stringify(values) });
+  assert.equal((await discoverIDE({ platform: 'win32', hostPid: 20, run }))[0].port, 20002);
+  await assert.rejects(discoverIDE({ platform: 'win32', hostPid: 99, run }), /Multiple/);
+  assert.equal((await discoverIDE({ platform: 'win32', serverProcessId: 1, run }))[0].port, 20001);
+  await assert.rejects(discoverIDE({ platform: 'win32', serverProcessId: 99, run }), /no longer running/);
 });
