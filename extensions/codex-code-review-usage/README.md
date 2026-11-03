@@ -61,3 +61,7 @@ Click the new Antigravity status item for its own reusable dashboard tab. Naviga
 Settings: `antigravityUsage.enabled` (default true) and `antigravityUsage.refreshIntervalSeconds` (default 120; minimum effective 30; 0 for manual refresh). These work independently from Codex settings. No agent turns are sent; the local summary read uses `forceRefresh: false`.
 
 The current local discovery implementation is Windows-only. Failure to locate or read Antigravity is shown in its page and does not interrupt Codex or code review. Antigravity's local HTTPS service uses a self-signed certificate, like its desktop wrapper: the TLS exception is restricted to each request to 127.0.0.1 on a freshly discovered desktop process-owned port. There are no redirects or global TLS-setting changes. The internal API can change between app versions. The existing original extension name/identifier is retained.
+
+## Antigravity IDE source feasibility (2026-11-03)
+
+A separate read-only investigation of Antigravity IDE 2.5.5 confirmed that its own process-owned local language server returns grouped five-hour/weekly quotas and per-model status through the same RPC methods. The white-icon desktop process was not used for these IDE requests. This establishes IDE-source feasibility, not an automatic source switch: production 0.5.0 still selects the desktop app. IDE catalog membership/reset snapshots can vary by process, and an implementation must choose the intended IDE workspace/account rather than silently mixing sources. Absolute token counts remain unavailable.
