@@ -100,6 +100,7 @@ test('extension polling updates dashboard and status from one read and coalesces
   const sandbox = { module: { exports: {} }, console,
     setTimeout: setTimer, clearTimeout: timer => timers.delete(timer?.id), setInterval: () => ({ unref() {} }), clearInterval() {},
     require: name => {
+      if (name === './antigravity-view') return { installAntigravityView() {} };
       if (name === 'vscode') return mock;
       if (name === './core') return require('../core');
       if (name === './monthly-usage') return require('../monthly-usage');

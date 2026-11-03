@@ -17,7 +17,7 @@ manifest = f'''<?xml version="1.0" encoding="utf-8"?>
 with ZipFile(output, 'x', ZIP_DEFLATED) as archive:
     archive.writestr('extension.vsixmanifest', manifest)
     archive.writestr('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="json" ContentType="application/json"/><Default Extension="js" ContentType="application/javascript"/><Default Extension="svg" ContentType="image/svg+xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="md" ContentType="text/markdown"/><Default Extension="vsixmanifest" ContentType="text/xml"/></Types>')
-    for name in ['package.json', 'extension.js', 'core.js', 'usage.js', 'monthly-usage.js', 'backend-quota.js', 'backend-client.js', 'backend-transport.js', 'codex-auth.js', 'dashboard-panel.js', 'README.md']:
+    for name in ['package.json', 'extension.js', 'core.js', 'usage.js', 'monthly-usage.js', 'backend-quota.js', 'backend-client.js', 'backend-transport.js', 'codex-auth.js', 'dashboard-panel.js', 'antigravity.js', 'antigravity-view.js', 'README.md']:
         archive.write(source / name, f'extension/{name}')
     for asset in (source / 'media').iterdir():
         if asset.suffix not in {'.svg', '.png'}:

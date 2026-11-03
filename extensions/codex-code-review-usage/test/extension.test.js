@@ -37,7 +37,7 @@ test('activation discovers published batches and requests an immutable native di
       },
       commands: { registerCommand: (name, fn) => { commands.set(name, fn); return noop(); }, executeCommand: async (...args) => calls.push(args) }
     };
-    const sandbox = { require: name => name === 'vscode' ? mock : name === './core' ? require('../core') : name === './usage' ? require('../usage') : name === './monthly-usage' ? require('../monthly-usage') : name === './dashboard-panel' ? require('../dashboard-panel') : require(name), module: { exports: {} }, setTimeout, clearTimeout, setInterval, clearInterval, console };
+    const sandbox = { require: name => name === './antigravity-view' ? { installAntigravityView() {} } : name === 'vscode' ? mock : name === './core' ? require('../core') : name === './usage' ? require('../usage') : name === './monthly-usage' ? require('../monthly-usage') : name === './dashboard-panel' ? require('../dashboard-panel') : require(name), module: { exports: {} }, setTimeout, clearTimeout, setInterval, clearInterval, console };
     vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, '../extension.js'), 'utf8'), sandbox);
     sandbox.module.exports.activate({ subscriptions: [], workspaceState: { get: () => ['already-seen'], update: async () => {} } });
     await new Promise(resolve => setTimeout(resolve, 40));

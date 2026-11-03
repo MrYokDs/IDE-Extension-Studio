@@ -1,4 +1,4 @@
-# Codex Code Review & Usage 0.4.6
+# Codex Code Review & Usage 0.5.0
 
 Codex Code Review & Usage combines read-only change review with a Codex Usage panel styled after the AntigravityQuota status-bar monitor. The extension identity is `code-review-tools.code-review-usage`; it replaces `local-modpack.codex-review-bridge`.
 
@@ -48,6 +48,16 @@ The independent OAuth trial was blocked before authorization by the workspace po
 
 `codex-auth.js` obtains credentials in memory through the installed Codex sign-in, and closes its child process before returning. `backend-client.js` coordinates independent quota, monthly and model reads. `backend-transport.js` owns endpoint paths, origin restrictions, authentication headers, redirects, cancellation and HTTP transport; schema mapping stays in focused modules. An endpoint failure does not discard other successful results. No credentials are returned to UI state. Models use the verified catalog compatibility parameter `client_version=0.164.0`, maintained centrally with endpoint routing. Independent OAuth remains disabled; no organization policy changes are required.
 
-## Required companion extensions
+## Required extension
 
-The installer declares `openai.chatgpt` and `clhome.antigravity-quota` as required extension dependencies. antigravityQuota is a required companion by project choice; Codex usage does not read data from it. Version 1.0.0 is the requested reference, but VS Code extensionDependencies stores IDs only and cannot pin a dependency version. The IDE resolves an available compatible Marketplace version. Dependencies must be available and enabled for normal activation; an unavailable dependency may block installation/activation even when only Code Review is wanted. Users sign in to Codex themselves. Offline installations require installing dependency VSIX packages separately.
+Only `openai.chatgpt` is required for existing Codex sign-in. antigravityQuota is not a dependency and its API/data is not used. An older separately installed copy is not automatically uninstalled; disable it if you want to avoid duplicate quota items.
+
+## Antigravity desktop (0.5.0)
+
+On Windows, the separate white-icon **Antigravity desktop** app must be running and signed in. Antigravity IDE alone does not provide this data source. The extension discovers the desktop-owned `language_server.exe` and its listening ports, then uses local read-only `RetrieveUserQuotaSummary` and `GetUserStatus` calls. The desktop process runtime CSRF value is held only in memory. No Google credential files, browser cookies, credential databases, or remote OAuth tokens are read.
+
+Click the new Antigravity status item for its own reusable dashboard tab. Navigation links connect Codex and Antigravity dashboards. The grouped weekly/five-hour quotas are shown separately from per-model quota returned by the service; models in a group share allowance. Missing model quota is Unavailable, never inferred as zero. Absolute model token counts and credit balances are not claimed by this page.
+
+Settings: `antigravityUsage.enabled` (default true) and `antigravityUsage.refreshIntervalSeconds` (default 120; minimum effective 30; 0 for manual refresh). These work independently from Codex settings. No agent turns are sent; the local summary read uses `forceRefresh: false`.
+
+The current local discovery implementation is Windows-only. Failure to locate or read Antigravity is shown in its page and does not interrupt Codex or code review. Antigravity's local HTTPS service uses a self-signed certificate, like its desktop wrapper: the TLS exception is restricted to each request to 127.0.0.1 on a freshly discovered desktop process-owned port. There are no redirects or global TLS-setting changes. The internal API can change between app versions. The existing original extension name/identifier is retained.

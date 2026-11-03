@@ -1,7 +1,7 @@
 'use strict';
 const { randomBytes } = require('node:crypto');
 
-function createUsageDashboard(vscode, { render, refresh, onVisibilityChange = () => {} }) {
+function createUsageDashboard(vscode, { render, refresh, onVisibilityChange = () => {}, title = 'Codex Usage', viewType = 'codexUsage.dashboard', commandUris = ['codexUsage.refresh'] }) {
   let panel = null;
   let ready = false;
   let disposed = false;
@@ -14,8 +14,8 @@ function createUsageDashboard(vscode, { render, refresh, onVisibilityChange = ()
     if (disposed) return;
     if (panel) panel.reveal(panel.viewColumn ?? vscode.ViewColumn.Active);
     else {
-      const current = vscode.window.createWebviewPanel('codexUsage.dashboard', 'Codex Usage', vscode.ViewColumn.Active, {
-        enableScripts: true, retainContextWhenHidden: true, enableCommandUris: ['codexUsage.refresh']
+      const current = vscode.window.createWebviewPanel(viewType, title, vscode.ViewColumn.Active, {
+        enableScripts: true, retainContextWhenHidden: true, enableCommandUris: commandUris
       });
       panel = current;
       ready = false;
