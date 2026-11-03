@@ -6,7 +6,7 @@ When no display model is manually selected, the status bar uses the Codex catalo
 
 ## Codex usage
 
-All usage amounts and quota windows are read directly from the ChatGPT backend using the same signed-in account. Five-hour/weekly quotas use `/backend-api/wham/usage`; monthly usage uses the separate monthly endpoint described below. The app-server is used only for `getAuthStatus` sign-in, then closed before backend reads. Account/read, model/list and account/rateLimits/read are not called. The executable is bundled with the official **Codex ? OpenAI's coding agent** extension (`openai.chatgpt`), which must be installed and signed in. A separate `codex` command on PATH is not needed. Authentication files are never read or stored. If either backend endpoint fails, the other result is preserved; there is no quota fallback to app-server.
+All usage amounts and quota windows are read directly from the ChatGPT backend using the same signed-in account. Five-hour/weekly quotas use `/backend-api/wham/usage`; monthly usage uses the separate monthly endpoint described below. For Usage, the app-server is used only for `getAuthStatus` sign-in, then closed before backend reads. Account/read, model/list and account/rateLimits/read are not called. The executable is bundled with the official **Codex ? OpenAI's coding agent** extension (`openai.chatgpt`), which must be installed and signed in. A separate `codex` command on PATH is not needed. Authentication files are never read or stored. If either backend endpoint fails, the other result is preserved; there is no quota fallback to app-server.
 
 Monthly usage uses the same read-only workspace monthly-usage endpoint found in the Codex desktop app. The extension obtains the existing account's authorization through the app-server `getAuthStatus` method, holds it only in memory, and sends it only to the fixed ChatGPT backend origin with redirects disabled. Account identity is checked before the request. Monthly amounts use the desktop's rounding and number grouping, for example **15 of 10,000 credits used**. This is an internal desktop endpoint rather than a documented stable third-party API; if it becomes unavailable, quota windows continue working and monthly usage shows unavailable. Tokens are never written to extension state, output logs, or the dashboard.
 
@@ -52,7 +52,7 @@ The independent OAuth trial was blocked before authorization by the workspace po
 
 Only `openai.chatgpt` is required for existing Codex sign-in. antigravityQuota is not a dependency and its API/data is not used. An older separately installed copy is not automatically uninstalled; disable it if you want to avoid duplicate quota items.
 
-## Antigravity IDE (0.5.2)
+## Antigravity IDE (0.6.0)
 
 On Windows, **Antigravity IDE** must be running, signed in, and have its language server initialized (open the agent panel if needed). The separate white-icon Antigravity desktop app is not required and is not used as fallback. No antigravityQuota dependency is needed.
 
@@ -62,6 +62,14 @@ Read-only RetrieveUserQuotaSummary (forceRefresh=false) and GetUserStatus supply
 
 The separate dashboard/status item and antigravityUsage.enabled / refreshIntervalSeconds settings are unchanged. Codex and code review work independently. Current source detection supports Windows only; the internal service may change between IDE releases.
 
-## Status display (0.5.2)
+## Status display (0.6.0)
 
 Open each dashboard from its bottom status-bar item; dashboard headers no longer contain provider navigation. Codex window headings use Five hour/Weekly labels without the redundant codex bucket prefix. Antigravity displays the first model by default; Choose Display Model in its popup/command palette stores a manual display choice per workspace, without changing the active chat model. Each status item normally displays five-hour remaining quota. If the corresponding weekly remaining percentage is zero, it displays 0% (Weekly) instead. Antigravity uses the selected model's matching quota family, so an exhausted Gemini pool does not mask an available Claude/GPT pool.
+
+## Codex Projects (0.6.0)
+
+Open **Codex Projects** in the Activity Bar for a separate Projects & Chats tree. The default scope is Current workspace; use the filter button or Codex Projects: Choose Scope to show All projects. Refresh reads up to 1,000 non-archived chat titles and recorded working folders through app-server thread/list with useStateDbOnly=true. No turns/transcripts are requested and chat metadata is not saved in the repository. Only opening/refreshing the view performs a list request, not Usage polling.
+
+Folders group by their recorded cwd, which can differ from custom project labels/membership in the desktop app; worktrees or migrated paths can appear separately. Clicking a chat routes through the installed official extension URI handler (/local/thread-id). This is an internal IDE integration verified against installed Codex 26.1021.22027 and can change in later versions; live UI navigation remains a visual verification step. The original Codex Chats list is not patched or replaced.
+
+Settings: codexProjects.enabled (true) and codexProjects.scope (workspace/all). Selecting another project does not open its files or switch IDE workspaces automatically. Displaying a title list and navigating to an existing chat does not send a new model turn.

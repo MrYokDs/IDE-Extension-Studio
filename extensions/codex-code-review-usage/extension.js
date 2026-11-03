@@ -5,10 +5,12 @@ const { safeFile, readBatch, hash, text } = require('./core');
 const { resolveCodexExtensionExecutable, requestCodexUsage } = require('./usage');
 const { primaryWindow } = require('./status-quota');
 const { describeMonthlyUsage } = require('./monthly-usage');
+const { installCodexProjects } = require('./projects');
 const { installAntigravityView } = require('./antigravity-view');
 const { createUsageDashboard } = require('./dashboard-panel');
 function activate(context) {
   installAntigravityView(vscode, context);
+  installCodexProjects(vscode, context);
   const changed = new vscode.EventEmitter();
   const output = vscode.window.createOutputChannel('Codex Code Review & Usage');
   const usageOutput = vscode.window.createOutputChannel('Codex Usage');

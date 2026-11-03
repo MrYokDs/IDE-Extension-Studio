@@ -1,11 +1,11 @@
 {
   "name": "ide-extension-studio",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "private": true,
   "workspaces": [
     "extensions/*"
   ],
   "scripts": {
-    "test": "node --test extensions/codex-code-review-usage/test/core.test.js extensions/codex-code-review-usage/test/extension.test.js extensions/codex-code-review-usage/test/usage.test.js extensions/codex-code-review-usage/test/dashboard.test.js extensions/codex-code-review-usage/test/antigravity.test.js"
+    "test": "node --test extensions/codex-code-review-usage/test/core.test.js extensions/codex-code-review-usage/test/extension.test.js extensions/codex-code-review-usage/test/usage.test.js extensions/codex-code-review-usage/test/dashboard.test.js extensions/codex-code-review-usage/test/antigravity.test.js extensions/codex-code-review-usage/test/projects.test.js"
   }
 }

@@ -11,7 +11,7 @@
 <!-- END user-workspace-autonomy -->
 
 # IDE Extension Studio
-- Develop JavaScript/Node.js IDE extensions here. Active extension: extensions/codex-code-review-usage, version 0.5.2. Historical Minecraft/Java/Forge rules in docs are evidence, not this project's toolchain.
+- Develop JavaScript/Node.js IDE extensions here. Active extension: extensions/codex-code-review-usage, version 0.6.0. Historical Minecraft/Java/Forge rules in docs are evidence, not this project's toolchain.
 - Preserve read-only review behavior: filename-only pinned tabs for all surviving changed files, first file selected, single-column diffs. No Accept/Reject, CodeLens or hunk controls unless explicitly requested again.
 - Put extensions under extensions/, reusable components under shared/, tools under tools/, docs under docs/, VSIX builds under releases/, and immutable historical evidence under archive/.
 - Use Graphify to inspect relationships before edits and update the graph after changes. State the input scope and limitations. Use REA for binary/runtime evidence only when appropriate; installing its skill does not install MCP/providers.

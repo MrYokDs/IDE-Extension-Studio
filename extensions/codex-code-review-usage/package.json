@@ -2,7 +2,7 @@
   "name": "code-review-usage",
   "displayName": "Codex Code Review & Usage",
   "description": "Review code changes and monitor Codex and Antigravity IDE usage.",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "icon": "media/icon.png",
   "publisher": "code-review-tools",
   "engines": {
@@ -59,6 +59,16 @@
       {
         "command": "antigravityUsage.selectDisplayModel",
         "title": "Antigravity Usage: Choose Display Model"
+      },
+      {
+        "command": "codexProjects.refresh",
+        "title": "Codex Projects: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "codexProjects.chooseScope",
+        "title": "Codex Projects: Choose Scope",
+        "icon": "$(filter)"
       }
     ],
     "views": {
@@ -67,6 +77,13 @@
           "id": "codexReview.changes",
           "name": "Codex Changes",
           "when": "config.codexReview.enabled"
+        }
+      ],
+      "codexProjects": [
+        {
+          "id": "codexProjects.chats",
+          "name": "Projects & Chats",
+          "when": "config.codexProjects.enabled"
         }
       ]
     },
@@ -110,12 +127,49 @@
           "default": 0,
           "minimum": 0,
           "description": "0 selects the current extension host language server automatically. Set a specific IDE language-server process ID only if automatic selection is ambiguous; update it after that server restarts."
+        },
+        "codexProjects.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a separate project-grouped Codex chat list. Does not modify the official Codex chat UI."
+        },
+        "codexProjects.scope": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "all"
+          ],
+          "default": "workspace",
+          "description": "List chat titles for the current workspace or all projects, grouped by their recorded working folder."
         }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codexProjects",
+          "title": "Codex Projects",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codexProjects.refresh",
+          "when": "view == codexProjects.chats",
+          "group": "navigation"
+        },
+        {
+          "command": "codexProjects.chooseScope",
+          "when": "view == codexProjects.chats",
+          "group": "navigation"
+        }
+      ]
     }
   },
   "scripts": {
-    "test": "node --test test/core.test.js test/extension.test.js test/usage.test.js test/dashboard.test.js test/antigravity.test.js"
+    "test": "node --test test/core.test.js test/extension.test.js test/usage.test.js test/dashboard.test.js test/antigravity.test.js test/projects.test.js"
   },
   "license": "MIT"
 }
