@@ -194,7 +194,7 @@ function activate(context) {
       const liveBytes = fs.existsSync(live) ? fs.readFileSync(live) : null;
       const matches = current.after === null ? liveBytes === null : liveBytes !== null && hash(liveBytes) === current.after.sha256;
       if (!matches) output.appendLine(`${file.path}: working file changed since batch; showing recorded snapshots.`);
-      await vscode.commands.executeCommand('vscode.diff', uris[0], uris[1], file.path.split('/').pop(), { preview: false, preserveFocus });
+      await vscode.commands.executeCommand('vscode.diff', uris[0], uris[1], file.path.split('/').pop(), { preview: false, preserveFocus, override: 'default' });
     } catch (error) { output.appendLine(String(error)); vscode.window.showErrorMessage(`Codex Review: ${error.message}`); }
   }
   async function openBatch(batch) {

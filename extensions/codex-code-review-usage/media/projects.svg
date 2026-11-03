@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>Codex Projects</title>
+  <path d="M3 6.5h6l2-2h10v13H13l-3 3v-3H3z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="m8 9-2.5 2.5L8 14m8-5 2.5 2.5L16 14m-3-5-2 5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

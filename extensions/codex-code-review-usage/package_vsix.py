@@ -23,6 +23,7 @@ with ZipFile(output, 'x', ZIP_DEFLATED) as archive:
         if asset.suffix not in {'.svg', '.png'}:
             continue
         archive.write(asset, f'extension/media/{asset.name}')
+    archive.write(source / 'batch.js', 'extension/batch.js')
 with ZipFile(output) as archive:
     assert archive.testzip() is None
 print(output)

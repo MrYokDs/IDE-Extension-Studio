@@ -1,4 +1,4 @@
-# Codex Code Review & Usage 0.5.0
+# Codex Code Review & Usage 0.6.2
 
 Codex Code Review & Usage combines read-only change review with a Codex Usage panel styled after the AntigravityQuota status-bar monitor. The extension identity is `code-review-tools.code-review-usage`; it replaces `local-modpack.codex-review-bridge`.
 
@@ -26,6 +26,16 @@ Codex reports quota buckets such as `codex`; these are not always model-specific
 - Has no Accept/Reject, CodeLens, or hunk controls.
 
 Requires a trusted workspace. Review snapshots are local under `.codex-review/batches`.
+
+Auto-open is triggered by a published review batch, not every file save or arbitrary edits by another extension. The editing agent/tool must capture before snapshots before editing, then publish after finishing:
+
+```sh
+node extensions/codex-code-review-usage/batch.js begin . unique-id "Change title" path/to/file.js
+# edit and validate the listed files
+node extensions/codex-code-review-usage/batch.js publish . unique-id
+```
+
+The helper is also included as `batch.js` in the installed extension. Set both `codexReview.enabled` and `codexReview.autoOpen` to true. Use **Codex Review: Open Latest Batch** to reopen a batch already seen. Existing edits without before snapshots cannot be reconstructed by this helper.
 
 ## Feature settings (0.4.3)
 

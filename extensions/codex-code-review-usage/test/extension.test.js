@@ -48,6 +48,7 @@ test('activation discovers published batches and requests an immutable native di
     assert.equal(new Set(calls.map(call => call[2].toString())).size, 3);
     assert.ok(calls.every(call => !call[3].startsWith('deleted.txt')));
     assert.ok(calls.every(call => call[4].preview === false));
+    assert.ok(calls.every(call => call[4].override === 'default'));
     assert.equal(calls.at(-1)[3], 'demo.txt');
     assert.deepEqual([...new Set(calls.map(call => call[3]))], ['demo.txt','second.txt','third.txt']);
     assert.equal(calls.at(-1)[4].preserveFocus, false);
