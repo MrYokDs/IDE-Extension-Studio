@@ -1,9 +1,8 @@
 'use strict';
 const { execFile } = require('node:child_process');
 const https = require('node:https');
+const http = require('node:http');
 const { promisify } = require('node:util');
-const fs = require('node:fs');
-const path = require('node:path');
 const run = promisify(execFile);
 const SERVICE = '/exa.language_server_pb.LanguageServerService/';
 let cached = null;
@@ -34,32 +33,53 @@ function normalizeAntigravity(summary, status) {
 }
 async function discoverIDE(options = {}) {
   if ((options.platform || process.platform) !== 'win32') throw new Error('Antigravity IDE discovery currently supports Windows only.');
-  const script = String.raw`Get-CimInstance Win32_Process -Filter "Name = 'language_server_windows_x64.exe'" | Where-Object { $_.ExecutablePath -match '[\\/]Antigravity IDE[\\/]resources[\\/]app[\\/]extensions[\\/]antigravity[\\/]bin[\\/]language_server_windows_x64.exe$' } | ForEach-Object { $p = $_; $ports = @(Get-NetTCPConnection -OwningProcess $p.ProcessId -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -in @('127.0.0.1','0.0.0.0','::1','::') } | Select-Object -ExpandProperty LocalPort -Unique); [pscustomobject]@{ pid=$p.ProcessId; parentPid=$p.ParentProcessId; command=$p.CommandLine; ports=$ports } } | ConvertTo-Json -Depth 4 -Compress`;
+  const script = String.raw`Get-CimInstance Win32_Process -Filter "Name = 'language_server_windows_x64.exe' OR Name = 'agy.exe'" | ForEach-Object {
+    $p = $_; $runtime = 'legacy'; $ancestors = @(); $ideAncestor = $false
+    if ($p.Name -eq 'agy.exe') {
+      if ($p.ExecutablePath -notmatch '[\\/]\.gemini[\\/]bin[\\/]agy.exe$' -or $p.CommandLine -notmatch '--hub(?:\s|$)') { return }
+      $runtime = 'hub'; $parent = $p.ParentProcessId
+      for ($depth = 0; $depth -lt 8 -and $parent -gt 0; $depth++) {
+        if ($parent -in $ancestors) { break }
+        $ancestors += $parent
+        $ancestor = Get-CimInstance Win32_Process -Filter "ProcessId = $parent" -ErrorAction SilentlyContinue
+        if (-not $ancestor) { break }
+        if ($ancestor.ExecutablePath -match '[\\/]Antigravity IDE[\\/]Antigravity IDE.exe$') { $ideAncestor = $true }
+        $parent = $ancestor.ParentProcessId
+      }
+      if (-not $ideAncestor) { return }
+    } elseif ($p.ExecutablePath -notmatch '[\\/]Antigravity IDE[\\/]resources[\\/]app[\\/]extensions[\\/]antigravity[\\/]bin[\\/]language_server_windows_x64.exe$') { return }
+    $ports = @(Get-NetTCPConnection -OwningProcess $p.ProcessId -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -in @('127.0.0.1','0.0.0.0','::1','::') } | Select-Object -ExpandProperty LocalPort -Unique)
+    [pscustomobject]@{ pid=$p.ProcessId; parentPid=$p.ParentProcessId; runtime=$runtime; ideAncestor=$ideAncestor; ancestors=$ancestors; command=$p.CommandLine; ports=$ports }
+  } | ConvertTo-Json -Depth 4 -Compress`;
   let stdout;
   try { ({ stdout } = await (options.run || run)('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, timeout: 10000, maxBuffer: 1024 * 1024 })); }
   catch { throw new Error('Antigravity IDE process discovery failed. Check Windows process access.'); }
   let values;
   try { values = stdout.trim() ? JSON.parse(stdout) : []; } catch { throw new Error('Antigravity IDE discovery returned invalid data.'); }
-  const servers = (Array.isArray(values) ? values : [values]).filter(value => /--subclient_type(?:=|\s+)ide\b/.test(value.command || ''));
-  const selected = options.serverProcessId ? servers.filter(value => value.pid === options.serverProcessId) : servers.filter(value => value.parentPid === (options.hostPid || process.pid));
+  const servers = (Array.isArray(values) ? values : [values]).filter(value => value?.runtime === 'hub'
+    ? value.ideAncestor === true && /--hub(?:\s|$)/.test(value.command || '')
+    : /--subclient_type(?:=|\s+)ide\b/.test(value?.command || ''));
+  const hostPid = options.hostPid || process.pid;
+  const selected = options.serverProcessId ? servers.filter(value => value.pid === options.serverProcessId) : servers.filter(value => value.parentPid === hostPid || (Array.isArray(value.ancestors) && value.ancestors.includes(hostPid)));
   if (options.serverProcessId && !selected.length) throw new Error('Selected Antigravity IDE server is no longer running. Update Server Process Id or set it to 0.');
   if (!selected.length && servers.length > 1) throw new Error('Multiple Antigravity IDE servers found. Set Antigravity Usage: Server Process Id to the intended IDE server.');
   return (selected.length ? selected : servers).flatMap(value => {
     const command = value.command || '';
-    if (!/--subclient_type(?:=|\s+)ide\b/.test(command)) return [];
     const token = /--csrf_token(?:=|\s+)["']?([^\s"']+)/.exec(command)?.[1];
-    return token ? (Array.isArray(value.ports) ? value.ports : []).filter(port => Number.isInteger(port) && port > 0 && port <= 65535).map(port => ({ port, token })) : [];
+    return token ? (Array.isArray(value.ports) ? value.ports : []).filter(port => Number.isInteger(port) && port > 0 && port <= 65535).map(port => ({ port, token, ...(value.runtime === 'hub' ? { protocol: 'http:' } : {}) })) : [];
   });
 }
 function localRead(endpoint, method, options = {}) {
   if (!['RetrieveUserQuotaSummary', 'GetUserStatus'].includes(method)) return Promise.reject(new Error('Unsupported Antigravity read method'));
+  if (!Number.isInteger(endpoint?.port) || endpoint.port < 1 || endpoint.port > 65535 || typeof endpoint.token !== 'string' || !endpoint.token || !['http:', 'https:'].includes(endpoint.protocol || 'https:')) return Promise.resolve(null);
   return new Promise(resolve => {
     if (options.signal?.aborted) return resolve(null);
     const body = JSON.stringify(method === 'RetrieveUserQuotaSummary' ? { request: {}, forceRefresh: false } : {});
     // The IDE uses a self-signed certificate on its process-owned loopback port.
     // This exception is local to this request: no remote host, redirects or global TLS changes.
     // Never send local CSRF credentials through an IDE/global proxy agent.
-    const request = https.request({ hostname: '127.0.0.1', port: endpoint.port, path: SERVICE + method, method: 'POST', agent: false, rejectUnauthorized: false,
+    const transport = endpoint.protocol === 'http:' ? http : https;
+    const request = transport.request({ hostname: '127.0.0.1', port: endpoint.port, path: SERVICE + method, method: 'POST', agent: false, rejectUnauthorized: false,
       headers: { 'Content-Type': 'application/json', 'Connect-Protocol-Version': '1', 'X-Codeium-Csrf-Token': endpoint.token }, signal: options.signal }, response => {
       let data = '';
       response.on('data', chunk => { data += chunk; if (data.length > 2 * 1024 * 1024) request.destroy(); });
@@ -76,12 +96,9 @@ async function requestAntigravityUsage(options = {}) {
   const candidates = await (options.discover || discoverIDE)(options);
   if (!candidates.length) {
     cached = null;
-    if (options.appRoot && !(options.existsSync || fs.existsSync)(path.join(options.appRoot, 'extensions', 'antigravity', 'bin', 'language_server_windows_x64.exe'))) {
-      throw new Error('This IDE installation does not contain the Antigravity language-server runtime supported by this Usage reader. Proxy settings cannot supply the missing local service. Usage is unavailable for this installation; opening the Agent panel alone may not resolve it.');
-    }
-    throw new Error('No Antigravity IDE language server found. Open the built-in Antigravity Agent panel (separate from Codex), sign in if needed, then refresh. This reads a local service; proxy settings cannot start it. The white-icon app is not required.');
+    throw new Error('No supported Antigravity IDE local service found (language server or IDE-owned agy hub). Open the built-in Antigravity Agent panel (separate from Codex), sign in if needed, then refresh. This reads a local service; proxy settings cannot start it. The white-icon app is not required.');
   }
-  if (cached) candidates.sort((a, b) => Number(b.port === cached.port && b.token === cached.token) - Number(a.port === cached.port && a.token === cached.token));
+  if (cached) candidates.sort((a, b) => Number(b.port === cached.port && b.token === cached.token && b.protocol === cached.protocol) - Number(a.port === cached.port && a.token === cached.token && a.protocol === cached.protocol));
   for (const endpoint of candidates) {
     if (signal.aborted) break;
     const summary = await read(endpoint, 'RetrieveUserQuotaSummary', { ...options, signal });

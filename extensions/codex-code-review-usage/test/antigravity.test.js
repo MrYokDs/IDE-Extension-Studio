@@ -4,13 +4,50 @@ const assert = require('node:assert/strict');
 const { normalizeAntigravity, discoverIDE, requestAntigravityUsage, localRead } = require('../antigravity');
 const { EventEmitter } = require('node:events');
 const https = require('node:https');
+const http = require('node:http');
+const { once } = require('node:events');
 const { renderAntigravity, installAntigravityView } = require('../antigravity-view');
 const summary = { response: { groups: [{ displayName: 'Gemini Models', buckets: [{ window: '5h', remainingFraction: 0.82, resetTime: '2026-11-04T00:00:00Z' }, { window: 'weekly', remainingFraction: 0.5, resetTime: '2026-11-10T00:00:00Z' }] }] } };
 const status = { userStatus: { email: 'must-not-return@example.com', apiKey: 'must-not-return', planStatus: { planInfo: { teamsTier: 'TEAMS_TIER_PRO' } }, cascadeModelConfigData: { clientModelConfigs: [{ label: 'Gemini example', modelId: 'example', quotaInfo: { remainingFraction: 0.82, resetTime: '2026-11-04T00:00:00Z' } }, { label: 'Unavailable model', quotaInfo: {} }] } } };
 
-test('missing runtime is distinguished from a stopped local service', async () => {
-  await assert.rejects(requestAntigravityUsage({ discover: async () => [], appRoot: 'synthetic-ide', existsSync: () => false }), /does not contain.*runtime/);
-  await assert.rejects(requestAntigravityUsage({ discover: async () => [], appRoot: 'synthetic-ide', existsSync: () => true }), /Open the built-in Antigravity Agent panel/);
+test('missing legacy binary does not diagnose an absent runtime; discovery checks both services', async () => {
+  await assert.rejects(requestAntigravityUsage({ discover: async () => [], appRoot: 'synthetic-ide', existsSync: () => false }), error => /language server or IDE-owned agy hub/.test(error.message) && !/does not contain/.test(error.message));
+});
+
+test('IDE-owned hub discovery uses HTTP and rejects standalone or ambiguous hubs', async () => {
+  const hub = { runtime: 'hub', pid: 123, parentPid: 50, ancestors: [50, 10], ideAncestor: true, command: '--hub --hub-port 12345 --csrf_token synthetic-test-token', ports: [12345, 0, 70000] };
+  const run = async () => ({ stdout: JSON.stringify([hub, { ...hub, pid: 124, ideAncestor: false }]) });
+  assert.deepEqual(await discoverIDE({ platform: 'win32', hostPid: 10, run }), [{ port: 12345, token: 'synthetic-test-token', protocol: 'http:' }]);
+  const standalone = async () => ({ stdout: JSON.stringify([{ ...hub, ideAncestor: false }, { ...hub, command: '--hub-port 12345 --csrf_token synthetic-test-token' }]) });
+  assert.deepEqual(await discoverIDE({ platform: 'win32', run: standalone }), []);
+  const multiple = async () => ({ stdout: JSON.stringify([hub, { ...hub, pid: 456, parentPid: 60, ancestors: [60, 20] }]) });
+  await assert.rejects(discoverIDE({ platform: 'win32', hostPid: 99, run: multiple }), /Multiple/);
+  assert.equal((await discoverIDE({ platform: 'win32', serverProcessId: 456, run: multiple })).length, 1);
+});
+
+test('real HTTP hub reads quota and plan without a legacy binary or proxy agent', async t => {
+  const requests = [];
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', chunk => { body += chunk; });
+    request.on('end', () => {
+      requests.push({ path: request.url, body: JSON.parse(body), token: request.headers['x-codeium-csrf-token'] });
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify(request.url.endsWith('/GetUserStatus') ? status : summary));
+    });
+  });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const value = await requestAntigravityUsage({ appRoot: 'no-legacy-runtime', discover: async () => [{ port: server.address().port, protocol: 'http:', token: 'synthetic-csrf' }] });
+  assert.equal(value.plan, 'Google AI Pro');
+  assert.equal(value.groups[0].windows[0].remainingPercent, 82);
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[0].body, { request: {}, forceRefresh: false });
+  assert.ok(requests.every(request => request.token === 'synthetic-csrf' && request.path.startsWith('/exa.language_server_pb.LanguageServerService/')));
+  assert.ok(!JSON.stringify(value).includes('synthetic-csrf'));
+  assert.equal(await localRead({ port: server.address().port, protocol: 'ftp:', token: 'synthetic-csrf' }, 'GetUserStatus'), null);
+  await assert.rejects(localRead({ port: server.address().port, token: 'synthetic-csrf' }, 'MutatingMethod'), /Unsupported/);
+  assert.equal(requests.length, 2);
 });
 
 test('local usage bypasses IDE proxy agents and sends CSRF only to loopback', async t => {

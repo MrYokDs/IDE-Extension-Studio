@@ -2,7 +2,7 @@
   "name": "code-review-usage",
   "displayName": "Codex Code Review & Usage",
   "description": "Review code changes and monitor Codex and Antigravity IDE usage.",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "icon": "media/icon.png",
   "publisher": "code-review-tools",
   "engines": {
@@ -124,7 +124,7 @@
         "antigravityUsage.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Monitor Antigravity IDE usage without the separate desktop app or quota extensions. Requires IDE signed in with its language server running; Windows only."
+          "description": "Monitor Antigravity IDE usage without the separate desktop app or quota extensions. Requires IDE signed in with its language server or IDE-owned agy hub running; Windows only."
         },
         "antigravityUsage.refreshIntervalSeconds": {
           "type": "number",
@@ -136,7 +136,7 @@
           "type": "integer",
           "default": 0,
           "minimum": 0,
-          "description": "0 selects the current extension host language server automatically. Set a specific IDE language-server process ID only if automatic selection is ambiguous; update it after that server restarts."
+          "description": "0 selects the current extension host's local quota service automatically. Set a specific IDE language-server or agy hub process ID only if automatic selection is ambiguous; update it after that process restarts."
         },
         "codexProjects.enabled": {
           "type": "boolean",

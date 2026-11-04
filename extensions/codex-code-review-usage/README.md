@@ -1,4 +1,4 @@
-# Codex Code Review & Usage 0.6.4
+# Codex Code Review & Usage 0.6.5
 
 ## Proxy connections
 
@@ -10,7 +10,7 @@ HTTP and HTTPS proxies use CONNECT tunnels with TLS certificate verification ena
 
 Do not put a PAC script URL in `http.proxy`: it expects an actual proxy server URL. Leave it empty to use Windows system resolution. `codexUsage.useWindowsProxy: false` disables the Windows lookup, while explicit IDE/environment proxies still apply. Other platforms retain existing direct transport when no proxy is specified. System resolution chooses one proxy; ordered PAC failover is not implemented. SOCKS and integrated NTLM/Kerberos authentication are unsupported. Corporate TLS interception requires a CA trusted by the Node extension host (for example through `NODE_EXTRA_CA_CERTS` set before launching the IDE); this adapter never disables certificate verification. Credential discovery still uses the official Codex app-server and its own network configuration.
 
-Antigravity Usage reads a separate process-owned loopback service and explicitly disables proxy agents for those requests. A missing language server is not a remote API proxy error. The reader supports the `extensions/antigravity/bin/language_server_windows_x64.exe` runtime with its IDE subclient flag. When that runtime is missing from the active IDE installation, the dashboard reports this compatibility limitation instead of repeatedly recommending that the Agent panel be opened. A Codex panel does not provide the Antigravity local quota service. New runtime architectures without this service are not yet supported.
+Antigravity Usage reads a process-owned loopback service and explicitly disables proxy agents for those requests. It supports both the older `extensions/antigravity/bin/language_server_windows_x64.exe` runtime with its IDE subclient flag (HTTPS), and the newer `.gemini/bin/agy.exe --hub` runtime (HTTP). Hub discovery verifies that an Antigravity IDE process exists in its parent chain before using its process-owned ports; standalone desktop hubs are excluded. Selection prefers the current extension host's process ancestry and refuses ambiguous servers unless a process ID is selected. A missing legacy binary alone does not mean the IDE has no quota service. A Codex panel does not provide that service.
 
 References: [VS Code network configuration](https://code.visualstudio.com/docs/setup/network), [Node HTTPS agent](https://github.com/nodejs/node/blob/main/doc/api/https.md), [Microsoft system proxy resolution](https://learn.microsoft.com/en-us/dotnet/api/system.net.webrequest.getsystemwebproxy?view=netframework-4.8.1).
 
@@ -78,9 +78,9 @@ Only `openai.chatgpt` is required for existing Codex sign-in. antigravityQuota i
 
 ## Antigravity IDE (0.6.0)
 
-On Windows, **Antigravity IDE** must be running, signed in, and have its language server initialized (open the agent panel if needed). The separate white-icon Antigravity desktop app is not required and is not used as fallback. No antigravityQuota dependency is needed.
+On Windows, **Antigravity IDE** must be running, signed in, and have its local language server or IDE-owned agy hub initialized (open the agent panel if needed). The separate white-icon Antigravity desktop app is not required and is not used as fallback. No antigravityQuota dependency is needed.
 
-The extension discovers only the IDE-installed language_server_windows_x64.exe with subclient_type=ide and its process-owned loopback listeners. It prefers the server parented by the current extension host; when multiple unrelated IDE servers make automatic selection ambiguous, it reports an error instead of mixing accounts. `antigravityUsage.serverProcessId` can select the intended server explicitly; this ID must be updated if the process restarts. Keep 0 for automatic selection.
+The extension discovers the IDE-installed language_server_windows_x64.exe with subclient_type=ide, or `.gemini/bin/agy.exe --hub` with verified Antigravity IDE ancestry, and their process-owned loopback listeners. It prefers the service associated with the current extension host; when multiple unrelated IDE servers make automatic selection ambiguous, it reports an error instead of mixing accounts. `antigravityUsage.serverProcessId` can select the intended server explicitly; this ID must be updated if the process restarts. Keep 0 for automatic selection.
 
 Read-only RetrieveUserQuotaSummary (forceRefresh=false) and GetUserStatus supply group weekly/five-hour quotas and model snapshots. Runtime CSRF is in memory only; no credential files or browser cookies are read. Local HTTPS retains a request-scoped self-signed certificate exception for 127.0.0.1 only. Source is labeled Antigravity IDE local service. Missing token totals/credit balances are not inferred from percentages.
 

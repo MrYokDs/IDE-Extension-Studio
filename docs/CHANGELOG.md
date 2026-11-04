@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.5 — 2026-11-04
+
+- Fixed Antigravity Usage discovery for the IDE-owned `.gemini/bin/agy.exe --hub` runtime and its HTTP loopback service. Preserved the older language-server/HTTPS reader. Validates hub executable location, hub flag, Antigravity IDE ancestry and process-owned ports; excludes standalone hubs and refuses ambiguous process selection. CSRF remains in memory and is sent only to loopback; proxy agents stay disabled.
+- Corrected the 0.6.4 diagnosis: absence of the legacy language-server executable did not establish absence of a quota service. This installation uses an agy hub; no additional proxy setting or runtime installation was needed to read its quota.
+- Runtime evidence: the modified extension reader successfully returned Google AI Pro, Gemini Weekly 96% / 5 hour 100%, Claude/GPT Weekly 100% / 5 hour 100%, and seven models from the running IDE-owned service. These match the user's Models & Usage screenshot. No account identity, credentials or private diagnostics were saved. The home machine's runtime was not inspected, so its difference remains unverified.
+- Review snapshots: `agy-hub-20261104-01`. Relationship inspection scope: installed IDE Models & Usage → cloudCodeService → local quota RPC; IDE process ancestry → agy hub → loopback HTTP; extension discovery → reader → normalization. Graphify/update script and REA providers remain unavailable; inspection used scoped shipped JavaScript and sanitized runtime probes instead.
+- Validation: `npm.cmd test` passed all 47 tests, including IDE-owned hub/standalone rejection, ambiguous host selection, a real loopback HTTP server and legacy HTTPS request behavior. The modified reader also returned the real IDE quota described above. Real post-install dashboard verification remains pending; the live reader probe is not a post-install UI check.
+- Built `releases/code-review-usage-0.6.5-agy-hub.vsix` using the prior verified VSIX layout and current source via PowerShell/.NET because the prescribed Python runtime remains absent. Verified all 23 entries, source bytes, XML and version. Installed via Antigravity IDE CLI and confirmed `code-review-tools.code-review-usage@0.6.5`. Restart Extensions is required for the running host to activate this version; no Windows settings changed.
+
 ## 0.6.4 — 2026-11-04
 
 - Added automatic Windows system proxy resolution for Codex API requests when IDE/environment proxies are unset. Delegates PAC/WPAD/manual settings to Windows/.NET; no PAC evaluation in Node. Added application setting `codexUsage.useWindowsProxy` (default true). Preserves bypass rules, eight-second lookup timeout, cancellation, TLS verification and no direct retry on lookup/tunnel errors. PAC ordered failover and integrated proxy authentication remain unsupported.
