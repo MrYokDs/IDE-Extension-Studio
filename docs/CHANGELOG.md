@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.4 — 2026-11-04
+
+- Added automatic Windows system proxy resolution for Codex API requests when IDE/environment proxies are unset. Delegates PAC/WPAD/manual settings to Windows/.NET; no PAC evaluation in Node. Added application setting `codexUsage.useWindowsProxy` (default true). Preserves bypass rules, eight-second lookup timeout, cancellation, TLS verification and no direct retry on lookup/tunnel errors. PAC ordered failover and integrated proxy authentication remain unsupported.
+- Antigravity loopback reads explicitly bypass proxy agents. Missing compatible runtime now has a distinct dashboard explanation using the active IDE's appRoot.
+- Runtime evidence: no language-server processes were returned before or after the user opened the Agent panel. The active installed IDE does not contain the expected `extensions/antigravity/bin/language_server_windows_x64.exe` or its extension package. Therefore Antigravity quota retrieval remains unavailable on this installation; no successful runtime compatibility claim. No credentials, private logs or account files were inspected or saved.
+- Windows system resolver was run against the fixed ChatGPT quota URL and returned DIRECT. This confirms the resolver can run here, not that the corporate PAC routed a real authenticated API request successfully. No Windows settings changed.
+- Review snapshots: `windows-proxy-20261104-01` and `antigravity-runtime-20261104-01`. Relationship scope: extension refresh → proxy transport → Windows resolver or CONNECT; Antigravity view → local reader → process-owned loopback. Graphify and `tools/update_graph.py` remain unavailable in this checkout.
+- Validation: `npm.cmd test` passed all 45 tests; `git diff --check` passed. The actual new resolver returned DIRECT on this Windows host. Running the new Antigravity reader against the active installation reproduced the explicit missing-runtime diagnostic. These are runtime diagnostics, not successful quota retrieval.
+- Built `releases/code-review-usage-0.6.4-windows-proxy.vsix` through PowerShell/.NET ZIP because the prescribed Python runtime is absent. Used the verified previous VSIX layout, replaced every extension entry with current source/assets and updated manifest version. Reopened and verified all 23 entries against source, XML and version. Real authenticated system-proxy routing and Antigravity quota rendering remain pending.
+- Installed through the Antigravity IDE CLI and confirmed `code-review-tools.code-review-usage@0.6.4`. Restart Extensions/Reload Window remains necessary to activate the update in an already running host; no successful post-reload dashboard verification claimed.
+
 ## 0.6.3 — 2026-11-04
 
 - Added request-scoped HTTP/HTTPS CONNECT proxy support for Codex quota, monthly usage and models. Reads IDE proxy settings and proxy environment variables; supports Basic authentication, bypass rules and cancellation. Keeps TLS verification and fixed-origin/no-redirect behavior; no direct fallback on proxy failure.

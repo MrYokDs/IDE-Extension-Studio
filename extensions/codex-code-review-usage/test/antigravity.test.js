@@ -1,10 +1,38 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeAntigravity, discoverIDE, requestAntigravityUsage } = require('../antigravity');
+const { normalizeAntigravity, discoverIDE, requestAntigravityUsage, localRead } = require('../antigravity');
+const { EventEmitter } = require('node:events');
+const https = require('node:https');
 const { renderAntigravity, installAntigravityView } = require('../antigravity-view');
 const summary = { response: { groups: [{ displayName: 'Gemini Models', buckets: [{ window: '5h', remainingFraction: 0.82, resetTime: '2026-11-04T00:00:00Z' }, { window: 'weekly', remainingFraction: 0.5, resetTime: '2026-11-10T00:00:00Z' }] }] } };
 const status = { userStatus: { email: 'must-not-return@example.com', apiKey: 'must-not-return', planStatus: { planInfo: { teamsTier: 'TEAMS_TIER_PRO' } }, cascadeModelConfigData: { clientModelConfigs: [{ label: 'Gemini example', modelId: 'example', quotaInfo: { remainingFraction: 0.82, resetTime: '2026-11-04T00:00:00Z' } }, { label: 'Unavailable model', quotaInfo: {} }] } } };
+
+test('missing runtime is distinguished from a stopped local service', async () => {
+  await assert.rejects(requestAntigravityUsage({ discover: async () => [], appRoot: 'synthetic-ide', existsSync: () => false }), /does not contain.*runtime/);
+  await assert.rejects(requestAntigravityUsage({ discover: async () => [], appRoot: 'synthetic-ide', existsSync: () => true }), /Open the built-in Antigravity Agent panel/);
+});
+
+test('local usage bypasses IDE proxy agents and sends CSRF only to loopback', async t => {
+  let captured;
+  t.mock.method(https, 'request', (options, callback) => {
+    captured = options;
+    const request = new EventEmitter();
+    request.setTimeout = () => {};
+    request.end = () => queueMicrotask(() => {
+      const response = new EventEmitter(); response.statusCode = 200;
+      callback(response);
+      response.emit('data', JSON.stringify({ response: {} }));
+      response.emit('end');
+    });
+    return request;
+  });
+  assert.deepEqual(await localRead({ port: 12345, token: 'synthetic-csrf' }, 'RetrieveUserQuotaSummary'), { response: {} });
+  assert.equal(captured.agent, false);
+  assert.equal(captured.hostname, '127.0.0.1');
+  assert.equal(captured.headers['X-Codeium-Csrf-Token'], 'synthetic-csrf');
+  assert.equal(captured.headers['Proxy-Authorization'], undefined);
+});
 test('Antigravity maps real grouped windows and model quota without exposing identity or inventing token counts', () => {
   const value = normalizeAntigravity(summary, status);
   assert.equal(value.plan, 'Google AI Pro');

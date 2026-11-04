@@ -2,6 +2,8 @@
 const { execFile } = require('node:child_process');
 const https = require('node:https');
 const { promisify } = require('node:util');
+const fs = require('node:fs');
+const path = require('node:path');
 const run = promisify(execFile);
 const SERVICE = '/exa.language_server_pb.LanguageServerService/';
 let cached = null;
@@ -56,7 +58,8 @@ function localRead(endpoint, method, options = {}) {
     const body = JSON.stringify(method === 'RetrieveUserQuotaSummary' ? { request: {}, forceRefresh: false } : {});
     // The IDE uses a self-signed certificate on its process-owned loopback port.
     // This exception is local to this request: no remote host, redirects or global TLS changes.
-    const request = https.request({ hostname: '127.0.0.1', port: endpoint.port, path: SERVICE + method, method: 'POST', rejectUnauthorized: false,
+    // Never send local CSRF credentials through an IDE/global proxy agent.
+    const request = https.request({ hostname: '127.0.0.1', port: endpoint.port, path: SERVICE + method, method: 'POST', agent: false, rejectUnauthorized: false,
       headers: { 'Content-Type': 'application/json', 'Connect-Protocol-Version': '1', 'X-Codeium-Csrf-Token': endpoint.token }, signal: options.signal }, response => {
       let data = '';
       response.on('data', chunk => { data += chunk; if (data.length > 2 * 1024 * 1024) request.destroy(); });
@@ -71,7 +74,13 @@ async function requestAntigravityUsage(options = {}) {
   const read = options.read || localRead;
   const signal = options.signal || AbortSignal.timeout(15000);
   const candidates = await (options.discover || discoverIDE)(options);
-  if (!candidates.length) { cached = null; throw new Error('Open Antigravity IDE, sign in and start its agent panel so the language server is running. The white-icon app is not required.'); }
+  if (!candidates.length) {
+    cached = null;
+    if (options.appRoot && !(options.existsSync || fs.existsSync)(path.join(options.appRoot, 'extensions', 'antigravity', 'bin', 'language_server_windows_x64.exe'))) {
+      throw new Error('This IDE installation does not contain the Antigravity language-server runtime supported by this Usage reader. Proxy settings cannot supply the missing local service. Usage is unavailable for this installation; opening the Agent panel alone may not resolve it.');
+    }
+    throw new Error('No Antigravity IDE language server found. Open the built-in Antigravity Agent panel (separate from Codex), sign in if needed, then refresh. This reads a local service; proxy settings cannot start it. The white-icon app is not required.');
+  }
   if (cached) candidates.sort((a, b) => Number(b.port === cached.port && b.token === cached.token) - Number(a.port === cached.port && a.token === cached.token));
   for (const endpoint of candidates) {
     if (signal.aborted) break;
@@ -83,4 +92,4 @@ async function requestAntigravityUsage(options = {}) {
   cached = null;
   throw new Error('Antigravity IDE quota service is not ready or unavailable. Open the app and refresh.');
 }
-module.exports = { requestAntigravityUsage, normalizeAntigravity, discoverIDE };
+module.exports = { requestAntigravityUsage, normalizeAntigravity, discoverIDE, localRead };

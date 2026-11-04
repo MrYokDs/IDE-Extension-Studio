@@ -2,7 +2,7 @@
   "name": "code-review-usage",
   "displayName": "Codex Code Review & Usage",
   "description": "Review code changes and monitor Codex and Antigravity IDE usage.",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "icon": "media/icon.png",
   "publisher": "code-review-tools",
   "engines": {
@@ -94,6 +94,12 @@
     "configuration": {
       "title": "Codex Code Review & Usage",
       "properties": {
+        "codexUsage.useWindowsProxy": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Use Windows system proxy resolution (including PAC/WPAD) when no IDE or environment proxy is configured. Applies only to remote Codex usage API requests, not the Antigravity loopback service."
+        },
         "codexReview.autoOpen": {
           "type": "boolean",
           "default": true,

@@ -2,6 +2,27 @@
 const http = require('node:http');
 const https = require('node:https');
 const tls = require('node:tls');
+const { execFile } = require('node:child_process');
+const { promisify } = require('node:util');
+const run = promisify(execFile);
+
+async function resolveWindowsProxy(url, options = {}) {
+  if ((options.platform || process.platform) !== 'win32') return null;
+  // Delegate PAC/WPAD to Windows/.NET; never evaluate downloaded PAC in Node.
+  // Base64 is data only, so a URL cannot inject PowerShell syntax.
+  const encoded = Buffer.from(url.href).toString('base64');
+  const script = `$ErrorActionPreference='Stop'; $target=[uri][Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')); $proxy=[Net.WebRequest]::GetSystemWebProxy(); $selected=$proxy.GetProxy($target); if ($null -eq $selected) { throw 'No proxy result' }; if ($selected.AbsoluteUri -eq $target.AbsoluteUri) { 'DIRECT' } else { $selected.AbsoluteUri }`;
+  try {
+    const { stdout } = await (options.run || run)('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8', windowsHide: true, timeout: 8000, maxBuffer: 16384, signal: options.signal
+    });
+    const result = stdout.trim();
+    if (result === 'DIRECT') return null;
+    const proxy = resolveProxy(url, { proxy: result }, {});
+    if (!proxy || proxy.username || proxy.password) throw Error();
+    return proxy;
+  } catch { throw new Error('Windows proxy resolution failed. Check network/PAC availability or configure http.proxy.'); }
+}
 
 function bypassProxy(url, entries) {
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
@@ -96,12 +117,19 @@ function proxyFetch(url, options, proxy, authorization) {
   });
 }
 
-function createUsageFetch(config = {}, env = process.env, directFetch = globalThis.fetch) {
+function createUsageFetch(config = {}, env = process.env, directFetch = globalThis.fetch, systemResolver = resolveWindowsProxy) {
   return (input, options = {}) => {
     const url = new URL(input);
     if (url.origin !== 'https://chatgpt.com' || !url.pathname.startsWith('/backend-api/')) throw new Error('Backend endpoint not allowed');
     const proxy = resolveProxy(url, config, env);
-    return proxy ? proxyFetch(url, options, proxy, config.authorization) : directFetch(url, options);
+    if (proxy) return proxyFetch(url, options, proxy, config.authorization);
+    const bypass = config.support === 'off' || bypassProxy(url, config.noProxy ?? env.no_proxy ?? env.NO_PROXY);
+    if (bypass || config.useWindowsProxy === false) return directFetch(url, options);
+    return (async () => {
+      const systemProxy = await systemResolver(url, { signal: options.signal });
+      if (options.signal?.aborted) throw new Error('Backend request aborted');
+      return systemProxy ? proxyFetch(url, options, systemProxy, config.authorization) : directFetch(url, options);
+    })();
   };
 }
 
@@ -112,8 +140,9 @@ function usageFetchForIDE(vscode) {
   return createUsageFetch({
     proxy: config.get('proxy', ''), support: config.get('proxySupport', 'override'),
     authorization: config.get('proxyAuthorization', ''),
+    useWindowsProxy: vscode.workspace.getConfiguration('codexUsage').get('useWindowsProxy', true),
     noProxy: Array.isArray(noProxy) && noProxy.length ? noProxy.join(',') : undefined
   });
 }
 
-module.exports = { bypassProxy, resolveProxy, createUsageFetch, usageFetchForIDE };
+module.exports = { bypassProxy, resolveProxy, resolveWindowsProxy, createUsageFetch, usageFetchForIDE };

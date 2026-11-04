@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { once } = require('node:events');
-const { resolveProxy, bypassProxy, createUsageFetch, usageFetchForIDE } = require('../proxy-transport');
+const { resolveProxy, resolveWindowsProxy, bypassProxy, createUsageFetch, usageFetchForIDE } = require('../proxy-transport');
 const target = new URL('https://chatgpt.com/backend-api/wham/usage');
 
 test('IDE proxy precedes environment; lowercase, HTTPS and HTTP fallback work', () => {
@@ -25,7 +25,7 @@ test('NO_PROXY handles domains, boundaries, wildcard and ports', () => {
 test('direct fetch retains redirect, headers and cancellation; rejects other origins', async () => {
   const signal = new AbortController().signal;
   const options = { signal, redirect: 'error', headers: { Authorization: 'synthetic' } };
-  const fetch = createUsageFetch({}, {}, async (url, actual) => { assert.equal(url.href, target.href); assert.equal(actual, options); return 'direct'; });
+  const fetch = createUsageFetch({ useWindowsProxy: false }, {}, async (url, actual) => { assert.equal(url.href, target.href); assert.equal(actual, options); return 'direct'; });
   assert.equal(await fetch(target, options), 'direct');
   assert.throws(() => fetch('https://other.com/backend-api/usage'), /not allowed/);
 });
@@ -33,12 +33,60 @@ test('direct fetch retains redirect, headers and cancellation; rejects other ori
 test('IDE configuration reads proxy auth and noProxy on each refresh', () => {
   let proxy = 'http://first';
   const vscode = { workspace: { getConfiguration: section => {
-    assert.equal(section, 'http');
+    assert.ok(['http', 'codexUsage'].includes(section));
     return { get: (key, fallback) => ({ proxy, noProxy: ['chatgpt.com'] }[key] ?? fallback) };
   } } };
   assert.equal(typeof usageFetchForIDE(vscode), 'function');
   proxy = 'http://second';
   assert.equal(typeof usageFetchForIDE(vscode), 'function');
+});
+
+test('Windows resolver delegates PAC to OS without exposing credentials or accepting malformed output', async () => {
+  let script;
+  const signal = new AbortController().signal;
+  const run = async (file, args, options) => {
+    assert.equal(file, 'powershell.exe');
+    assert.equal(options.windowsHide, true);
+    assert.equal(options.signal, signal);
+    assert.equal(options.timeout, 8000);
+    script = args.at(-1);
+    return { stdout: 'http://system-proxy:8080/\r\n' };
+  };
+  assert.equal((await resolveWindowsProxy(target, { platform: 'win32', signal, run })).hostname, 'system-proxy');
+  assert.match(script, /GetSystemWebProxy/);
+  assert.match(script, /GetProxy/);
+  assert.equal(await resolveWindowsProxy(target, { platform: 'win32', run: async () => ({ stdout: 'DIRECT\r\n' }) }), null);
+  assert.equal(await resolveWindowsProxy(target, { platform: 'linux', run: () => assert.fail() }), null);
+  for (const output of ['', 'socks5://host', 'http://user:private@host']) {
+    await assert.rejects(resolveWindowsProxy(target, { platform: 'win32', run: async () => ({ stdout: output }) }), error => /Windows proxy resolution failed/.test(error.message) && !error.message.includes('private'));
+  }
+});
+
+test('Windows lookup failure fails closed; cancellation prevents late direct requests', async () => {
+  const direct = () => assert.fail('must not send a direct request');
+  const fetch = createUsageFetch({}, {}, direct, async () => { throw Error('lookup failed'); });
+  await assert.rejects(fetch(target), /lookup failed/);
+  const controller = new AbortController();
+  const cancelled = createUsageFetch({}, {}, direct, async () => { controller.abort(); return null; });
+  await assert.rejects(cancelled(target, { signal: controller.signal }), /aborted/);
+});
+
+test('explicit proxy, bypass and disabled system lookup never invoke Windows resolver', async t => {
+  const resolver = () => assert.fail('system resolver must not run');
+  for (const config of [{ support: 'off' }, { noProxy: 'chatgpt.com' }, { useWindowsProxy: false }]) {
+    assert.equal(await createUsageFetch(config, {}, async () => 'direct', resolver)(target), 'direct');
+  }
+  const proxy = await withProxy(t, (_request, socket) => socket.end('HTTP/1.1 407 Unauthorized\r\nContent-Length: 0\r\n\r\n'));
+  await assert.rejects(createUsageFetch({ proxy }, {}, () => assert.fail(), resolver)(target, { signal: AbortSignal.timeout(2000) }), /failed/);
+});
+
+test('Windows-selected proxy is used and DIRECT preserves existing fetch options', async t => {
+  const proxy = await withProxy(t, (_request, socket) => socket.end('HTTP/1.1 407 Unauthorized\r\nContent-Length: 0\r\n\r\n'));
+  let resolved;
+  await assert.rejects(createUsageFetch({}, {}, () => assert.fail('no fallback'), async url => { resolved = url.href; return new URL(proxy); })(target, { signal: AbortSignal.timeout(2000) }), /failed/);
+  assert.equal(resolved, target.href);
+  const options = { redirect: 'error' };
+  assert.equal(await createUsageFetch({}, {}, async (_url, actual) => { assert.equal(actual, options); return 'direct'; }, async () => null)(target, options), 'direct');
 });
 
 async function withProxy(t, handler) {

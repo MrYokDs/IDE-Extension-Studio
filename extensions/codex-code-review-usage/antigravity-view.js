@@ -52,7 +52,7 @@ function installAntigravityView(vscode, context, options = {}) {
     const current = generation;
     controller = new AbortController();
     inFlight = (async () => {
-      try { const fresh = await (options.read || requestAntigravityUsage)({ signal: controller.signal, serverProcessId: Number(config().get('serverProcessId', 0)) || undefined }); if (disposed || !enabled() || current !== generation) return; value = fresh; error = null; updated = Date.now(); }
+      try { const fresh = await (options.read || requestAntigravityUsage)({ signal: controller.signal, appRoot: vscode.env?.appRoot, serverProcessId: Number(config().get('serverProcessId', 0)) || undefined }); if (disposed || !enabled() || current !== generation) return; value = fresh; error = null; updated = Date.now(); }
       catch (failure) { if (disposed || !enabled() || current !== generation) return; value = null; error = failure.message; }
       update(); dashboard.update();
     })().finally(() => { inFlight = null; });
