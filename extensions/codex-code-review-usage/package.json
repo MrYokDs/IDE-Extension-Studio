@@ -2,7 +2,7 @@
   "name": "code-review-usage",
   "displayName": "Codex Code Review & Usage",
   "description": "Review code changes and monitor Codex and Antigravity IDE usage.",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "icon": "media/icon.png",
   "publisher": "code-review-tools",
   "engines": {
@@ -173,7 +173,7 @@
     }
   },
   "scripts": {
-    "test": "node --test test/core.test.js test/extension.test.js test/usage.test.js test/dashboard.test.js test/antigravity.test.js test/projects.test.js"
+    "test": "node --test test/core.test.js test/extension.test.js test/usage.test.js test/dashboard.test.js test/antigravity.test.js test/projects.test.js test/proxy.test.js"
   },
   "license": "MIT"
 }

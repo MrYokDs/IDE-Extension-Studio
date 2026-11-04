@@ -10,6 +10,9 @@
 !/tools/
 /tools/*
 !/tools/Build-ExtensionIcon.ps1
+!/docs/
+/docs/*
+!/docs/CHANGELOG.md
 # Never commit credentials, local snapshots, dependencies, or generated output.
 **/node_modules/
 **/__pycache__/

@@ -3,6 +3,7 @@ const vscode = require('vscode');
 const fs = require('node:fs');
 const { safeFile, readBatch, hash, text } = require('./core');
 const { resolveCodexExtensionExecutable, requestCodexUsage } = require('./usage');
+const { usageFetchForIDE } = require('./proxy-transport');
 const { primaryWindow } = require('./status-quota');
 const { describeMonthlyUsage } = require('./monthly-usage');
 const { installCodexProjects } = require('./projects');
@@ -129,7 +130,7 @@ function activate(context) {
       usageRefreshPromise = (async () => {
         try {
           const executable = resolveCodexExtensionExecutable(vscode.extensions);
-          const fresh = await requestCodexUsage(executable);
+          const fresh = await requestCodexUsage(executable, { fetch: usageFetchForIDE(vscode) });
           if (disposed || !usageEnabled()) return;
           codexUsage = fresh;
           lastUsageRefreshAt = Date.now();

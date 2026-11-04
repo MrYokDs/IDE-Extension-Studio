@@ -1,4 +1,16 @@
-# Codex Code Review & Usage 0.6.2
+# Codex Code Review & Usage 0.6.3
+
+## Proxy connections
+
+Codex quota, monthly usage and model catalog requests read the IDE's `http.proxy` on every refresh. For example, set `"http.proxy": "http://127.0.0.1:7890"` in user settings, then run **Codex Usage: Refresh**. Otherwise the extension uses `https_proxy`, `HTTPS_PROXY`, `http_proxy`, then `HTTP_PROXY` from the extension host environment. Restart the IDE after changing environment variables.
+
+HTTP and HTTPS proxies use CONNECT tunnels with TLS certificate verification enabled. Basic authentication in a proxy URL and `http.proxyAuthorization` are supported; proxy credentials are sent only to the proxy, while account authorization travels inside the encrypted tunnel. Credentials are not saved or logged by the extension. Avoid storing proxy passwords in shared workspace settings.
+
+`http.noProxy` (when nonempty), or `no_proxy`/`NO_PROXY`, bypasses the explicit proxy for matching hosts, domain suffixes, optional ports, or `*`. `http.proxySupport: "off"` disables this extension's explicit proxy routing. Direct requests continue through the host's existing fetch transport. Failed proxy connections do not retry directly. Redirects remain forbidden and requests retain the existing timeout.
+
+PAC/WPAD and OS proxy auto-discovery are not implemented by this adapter; configure an explicit proxy URL. SOCKS and integrated NTLM/Kerberos authentication are unsupported. Corporate TLS interception requires a CA trusted by the Node extension host (for example through `NODE_EXTRA_CA_CERTS` set before launching the IDE); this adapter never disables certificate verification. Antigravity's local loopback service is unchanged. Credential discovery still uses the official Codex app-server and its own network configuration.
+
+References: [VS Code network configuration](https://code.visualstudio.com/docs/setup/network), [Node HTTPS agent](https://github.com/nodejs/node/blob/main/doc/api/https.md).
 
 Codex Code Review & Usage combines read-only change review with a Codex Usage panel styled after the AntigravityQuota status-bar monitor. The extension identity is `code-review-tools.code-review-usage`; it replaces `local-modpack.codex-review-bridge`.
 

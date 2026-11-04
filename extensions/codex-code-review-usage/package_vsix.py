@@ -24,6 +24,7 @@ with ZipFile(output, 'x', ZIP_DEFLATED) as archive:
             continue
         archive.write(asset, f'extension/media/{asset.name}')
     archive.write(source / 'batch.js', 'extension/batch.js')
+    archive.write(source / 'proxy-transport.js', 'extension/proxy-transport.js')
 with ZipFile(output) as archive:
     assert archive.testzip() is None
 print(output)
